@@ -7,6 +7,7 @@ import { LEVEL_TH, thTime } from "@/lib/format";
 import CloseButton from "../components/CloseButton";
 import AutoRefresh from "../components/AutoRefresh";
 import LineTestButton from "../components/LineTestButton";
+import { escalateFromPage } from "@/lib/escalatePage";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ export default async function Alerts({ searchParams }) {
   const user = await currentUser();
   if (!user) redirect("/login");
   await ensureTruckColumns();
+  await escalateFromPage();
   const show = searchParams?.show === "all" ? "all" : "open";
   const events = await sql`
     SELECT e.id, e.level, e.reasons, e.driver_code, e.happened_at, e.lat, e.lon, e.speed,

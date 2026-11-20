@@ -6,12 +6,14 @@ import { currentUser } from "@/lib/auth";
 import { LEVEL_TH, thTime, isOnline } from "@/lib/format";
 import TruckMap from "./components/TruckMap";
 import AutoRefresh from "./components/AutoRefresh";
+import { escalateFromPage } from "@/lib/escalatePage";
 
 export const dynamic = "force-dynamic";
 
 export default async function Dashboard() {
   if (!(await currentUser())) redirect("/login");
   await ensureTruckColumns();
+  await escalateFromPage();
   const trucks = await sql`
     SELECT t.id, t.code, t.name, t.brand, t.model, t.vehicle_info,
            t.driver_code, t.driver_name, t.driver_phone,

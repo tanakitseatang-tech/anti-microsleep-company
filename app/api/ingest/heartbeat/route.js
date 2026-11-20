@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
 import { truckFromRequest } from "@/lib/auth";
 import { num, str } from "@/lib/validate";
+import { escalateOverdue } from "@/lib/escalate";
 
 export const runtime = "nodejs";
 
@@ -23,5 +24,11 @@ export async function POST(request) {
       camera_ok   = ${typeof b.camera_ok === "boolean" ? b.camera_ok : null},
       app_version = ${str(b.version, 40)}
     WHERE id = ${truck.id}`;
+  // C3: red alarm still open after 1 minute (driver did not press "ฉันตื่นแล้ว") → admin LINE
+  try {
+    await escalateOverdue({ truckId: truck.id, origin: new URL(request.url).origin });
+  } catch (err) {
+    console.error("LINE escalate error:", err?.message);
+  }
   return NextResponse.json({ ok: true, server_time: Math.floor(Date.now() / 1000) });
 }
