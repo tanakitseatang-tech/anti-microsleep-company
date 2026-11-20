@@ -44,7 +44,7 @@ export default async function Dashboard() {
 
   return (
     <>
-      <AutoRefresh seconds={30} />
+      <AutoRefresh seconds={5} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
         <h1>แผนที่รถและข้อมูลผู้ขับทุกคัน</h1>
         <Link className="btn" href="/trucks">📋 จัดการรถ / นำเข้า Datasheet พนักงาน</Link>
