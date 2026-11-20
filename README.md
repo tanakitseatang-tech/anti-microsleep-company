@@ -6,7 +6,7 @@
 | ส่วน | อยู่ที่ไหน | หมายเหตุ |
 |---|---|---|
 | ฝั่งคนขับ (`driver.html`, หน้าดูสด) | บนบอร์ด Arduino UNO Q ในรถ | ต้องทำงานออฟไลน์ ใช้ API บนบอร์ด → **ไม่ขึ้น Vercel** |
-| ฝั่งบริษัท (โปรเจคนี้) | Vercel + ฐานข้อมูล Postgres (Neon) | บอร์ดส่งเหตุการณ์มาทางอินเทอร์เน็ต |
+| ฝั่งบริษัท (โปรเจคนี้) | Vercel + ฐานข้อมูล Postgres (Supabase) | บอร์ดส่งเหตุการณ์มาทางอินเทอร์เน็ต |
 
 ## มีอะไรแล้ว
 - **C1** ล็อกอิน 3 สิทธิ์ (`admin` / `manager` / `viewer`), รหัสผ่าน bcrypt, ล็อกบัญชี 15 นาทีหลังใส่ผิด 5 ครั้ง, คุกกี้ httpOnly
@@ -59,7 +59,9 @@ git push -u origin main
 
 ## ขึ้น Vercel
 1. vercel.com → **Add New → Project** → เลือก repo `anti-microsleep-company` → **Deploy**
-2. ในโปรเจค → แท็บ **Storage** → **Create Database → Neon (Postgres)** → Connect กับโปรเจคนี้ (จะได้ `DATABASE_URL` อัตโนมัติ)
+2. ในโปรเจค → แท็บ **Storage** → **Create Database → Supabase** (Region Singapore, แพลน Free) → Connect กับโปรเจคนี้ (จะได้ `POSTGRES_URL` อัตโนมัติ)
+   ใช้ Postgres เจ้าอื่นได้ (เช่น Neon) โดยใส่ค่า `DATABASE_URL` แทน
+   ⚠️ Supabase แพลนฟรีจะหยุดโปรเจกต์ถ้าไม่มีการใช้งาน 7 วัน → เข้า supabase.com กด **Restore**
 3. **Deployments → Redeploy** (ให้เว็บเห็นฐานข้อมูล)
 
 ไม่ต้องตั้งค่าลับเอง: กุญแจคุกกี้ล็อกอินสร้างจาก `DATABASE_URL` ให้อัตโนมัติ
