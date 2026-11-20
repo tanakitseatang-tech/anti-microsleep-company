@@ -1,10 +1,11 @@
-// C2 + C9: dashboard — all trucks on a map, vehicle & driver info, who is offline, today's alerts.
+// C2 + C9: dashboard — all trucks on a map, vehicle & driver info, click-to-focus, who is offline, today's alerts.
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sql, ensureTruckColumns } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { LEVEL_TH, thTime, isOnline } from "@/lib/format";
 import TruckMap from "./components/TruckMap";
+import FocusTruckButton from "./components/FocusTruckButton";
 import AutoRefresh from "./components/AutoRefresh";
 import { escalateFromPage } from "@/lib/escalatePage";
 
@@ -49,7 +50,10 @@ export default async function Dashboard() {
       <AutoRefresh seconds={5} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
         <h1>แผนที่รถและข้อมูลผู้ขับทุกคัน</h1>
-        <Link className="btn" href="/trucks">📋 จัดการรถ / นำเข้า Datasheet พนักงาน</Link>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Link className="btn" href="/reports">📊 รายงานวิเคราะห์ & Heatmap</Link>
+          <Link className="btn" href="/trucks">📋 จัดการรถ / นำเข้า Datasheet พนักงาน</Link>
+        </div>
       </div>
       <div className="tiles">
         <div className="tile"><div className="k">รถออนไลน์</div><div className="v">{online} / {rows.length}</div></div>
@@ -70,6 +74,7 @@ export default async function Dashboard() {
               <th>กล้อง</th>
               <th>เคสค้าง</th>
               <th>ติดต่อล่าสุด</th>
+              <th>ดูบนแผนที่</th>
             </tr>
           </thead>
           <tbody>
@@ -109,11 +114,12 @@ export default async function Dashboard() {
                   <td>{r.camera_ok == null ? "—" : r.camera_ok ? "ปกติ" : "⚠️ ไม่มีภาพ"}</td>
                   <td>{r.open || "—"}</td>
                   <td>{r.seen}</td>
+                  <td><FocusTruckButton code={r.code} hasCoords={r.lat != null && r.lon != null} /></td>
                 </tr>
               );
             })}
             {!rows.length && (
-              <tr><td colSpan={8} className="muted">ยังไม่มีรถ — เพิ่มหรือนำเข้า Datasheet ที่หน้า <Link href="/trucks">จัดการรถ</Link></td></tr>
+              <tr><td colSpan={9} className="muted">ยังไม่มีรถ — เพิ่มหรือนำเข้า Datasheet ที่หน้า <Link href="/trucks">จัดการรถ</Link></td></tr>
             )}
           </tbody>
         </table>

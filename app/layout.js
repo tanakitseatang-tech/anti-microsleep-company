@@ -17,6 +17,7 @@ export default async function RootLayout({ children }) {
             <nav>
               <Link href="/">แผนที่รถ</Link>
               <Link href="/alerts">การแจ้งเตือน</Link>
+              <Link href="/reports">รายงานวิเคราะห์ & Heatmap</Link>
               {(user.role === "admin" || user.role === "manager") && <Link href="/trucks">จัดการรถ / พนักงาน (Datasheet)</Link>}
             </nav>
             <span className="who">{user.username} ({user.role}) <LogoutButton /></span>

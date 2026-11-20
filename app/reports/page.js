@@ -1,0 +1,215 @@
+// C5 + C6: Driver & Vehicle Safety Analytics, Safety Score (0-100), 24h Peak Drowsiness Chart, and Risk Heatmap.
+import { redirect } from "next/navigation";
+import { sql, ensureTruckColumns } from "@/lib/db";
+import { currentUser } from "@/lib/auth";
+import { thTime, thReason, thReasons } from "@/lib/format";
+import ReportMap from "../components/ReportMap";
+
+export const dynamic = "force-dynamic";
+
+export default async function ReportsPage() {
+  const user = await currentUser();
+  if (!user) redirect("/login");
+  await ensureTruckColumns();
+
+  const trucks = await sql`
+    SELECT t.id, t.code, t.name, t.brand, t.model, t.vehicle_info,
+           t.driver_code, t.driver_name, t.driver_phone,
+           count(e.id)::int AS total_events,
+           count(e.id) FILTER (WHERE e.level = 1)::int AS warn_count,
+           count(e.id) FILTER (WHERE e.level = 2)::int AS alarm_count,
+           count(e.id) FILTER (WHERE e.closed_at IS NOT NULL)::int AS closed_count,
+           count(e.id) FILTER (WHERE e.closed_at IS NULL)::int AS open_count
+    FROM trucks t
+    LEFT JOIN events e ON e.truck_id = t.id
+    WHERE t.key_revoked = false
+    GROUP BY t.id
+    ORDER BY alarm_count DESC, warn_count DESC, t.code ASC`;
+
+  const events = await sql`
+    SELECT e.id, e.level, e.reasons, e.happened_at, e.lat, e.lon, e.close_note,
+           t.code AS truck, t.driver_name, t.driver_code
+    FROM events e
+    JOIN trucks t ON t.id = e.truck_id
+    ORDER BY e.happened_at DESC
+    LIMIT 400`;
+
+  // 24-hour distribution in Asia/Bangkok time
+  const hours = Array(24).fill(0);
+  const causeCounts = {};
+  let totalRespSec = 0, respCount = 0;
+
+  for (const e of events) {
+    if (e.happened_at) {
+      const hr = Number(
+        new Intl.DateTimeFormat("en-US", {
+          timeZone: "Asia/Bangkok",
+          hour: "numeric",
+          hour12: false,
+        }).format(new Date(e.happened_at))
+      ) % 24;
+      if (!Number.isNaN(hr)) hours[hr]++;
+    }
+    for (const r of e.reasons || []) {
+      // Group by generic Thai reason category
+      const th = thReason(r).replace(/\s+[\d.]+\s*วินาที/, "").replace(/\s*\([^)]*\)/, "");
+      causeCounts[th] = (causeCounts[th] || 0) + 1;
+    }
+    const m = String(e.close_note || "").match(/ตอบสนองใน\s*(\d+)\s*วิ/);
+    if (m) {
+      totalRespSec += Number(m[1]);
+      respCount++;
+    }
+  }
+
+  const maxHour = Math.max(1, ...hours);
+  const topCauses = Object.entries(causeCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6);
+  const maxCause = Math.max(1, ...(topCauses.map((c) => c[1])));
+  const avgResp = respCount > 0 ? Math.round(totalRespSec / respCount) : null;
+
+  const heatPoints = events
+    .filter((e) => e.lat != null && e.lon != null)
+    .map((e) => ({
+      lat: e.lat,
+      lon: e.lon,
+      level: e.level,
+      truck: e.truck,
+      driver: [e.driver_name, e.driver_code ? `(${e.driver_code})` : ""].filter(Boolean).join(" "),
+      reason: thReasons(e.reasons),
+      time: thTime(e.happened_at),
+    }));
+
+  const totalAlarms = trucks.reduce((s, t) => s + t.alarm_count, 0);
+  const totalWarns = trucks.reduce((s, t) => s + t.warn_count, 0);
+
+  return (
+    <>
+      <h1>📊 รายงานวิเคราะห์ความปลอดภัย & Heatmap จุดเสี่ยง</h1>
+
+      <div className="tiles">
+        <div className="tile">
+          <div className="k">เหตุการณ์สะสมทั้งหมด</div>
+          <div className="v">{totalAlarms + totalWarns}</div>
+        </div>
+        <div className="tile">
+          <div className="k">เตือนเริ่มง่วง (เหลือง)</div>
+          <div className="v" style={{ color: "var(--warn)" }}>{totalWarns}</div>
+        </div>
+        <div className="tile">
+          <div className="k">หลับในอันตราย (แดง)</div>
+          <div className="v" style={{ color: "var(--alarm)" }}>{totalAlarms}</div>
+        </div>
+        <div className="tile">
+          <div className="k">เวลาคนขับกดตื่นเฉลี่ย</div>
+          <div className="v">{avgResp != null ? `${avgResp} วิ` : "—"}</div>
+        </div>
+      </div>
+
+      {/* C6: Drowsiness Danger-Zone Heatmap */}
+      <div className="card">
+        <b style={{ display: "block", marginBottom: 6 }}>
+          🗺️ แผนที่จุดเสี่ยงความง่วง (Drowsiness Risk Heatmap · {heatPoints.length} จุด)
+        </b>
+        <div className="muted" style={{ fontSize: 13, marginBottom: 8 }}>
+          วงกลมสีแดง = จุดที่เกิดการหลับใน (ระดับแดง) · วงกลมสีส้ม = จุดที่เริ่มมีอาการง่วง (ระดับเหลือง) · คลิกที่จุดเพื่อดูคนขับและสาเหตุ
+        </div>
+        <ReportMap points={heatPoints} />
+      </div>
+
+      {/* 24-Hour Peak Drowsiness & Cause Breakdown */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 16 }}>
+        <div className="card">
+          <b style={{ display: "block", marginBottom: 10 }}>⏰ ช่วงเวลาที่คนขับง่วงบ่อยที่สุด (24 ชั่วโมง)</b>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(24, 1fr)", gap: 4, alignItems: "end", height: 130, paddingTop: 16 }}>
+            {hours.map((cnt, h) => {
+              const pct = Math.round((cnt / maxHour) * 100);
+              return (
+                <div key={h} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }} title={`${h}:00 น. — ${cnt} ครั้ง`}>
+                  <span style={{ fontSize: 10 }} className="muted">{cnt || ""}</span>
+                  <div style={{ width: "100%", height: 85, display: "flex", alignItems: "flex-end", background: "rgba(128,128,128,0.1)", borderRadius: 4 }}>
+                    <div
+                      style={{
+                        width: "100%",
+                        height: `${cnt ? Math.max(12, pct) : 0}%`,
+                        background: cnt > maxHour * 0.6 ? "var(--alarm)" : "var(--accent)",
+                        borderRadius: 4,
+                      }}
+                    />
+                  </div>
+                  <span style={{ fontSize: 10 }} className="muted">{h}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="card">
+          <b style={{ display: "block", marginBottom: 10 }}>🔍 สาเหตุอาการง่วงที่พบบ่อยที่สุด</b>
+          {topCauses.map(([cause, cnt]) => (
+            <div key={cause} style={{ marginBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 3 }}>
+                <b>{cause}</b>
+                <span className="muted">{cnt} ครั้ง</span>
+              </div>
+              <div style={{ height: 8, background: "rgba(128,128,128,0.15)", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ width: `${Math.round((cnt / maxCause) * 100)}%`, height: "100%", background: "var(--warn)" }} />
+              </div>
+            </div>
+          ))}
+          {!topCauses.length && <div className="muted">ยังไม่มีข้อมูลการแจ้งเตือน</div>}
+        </div>
+      </div>
+
+      {/* C5: Driver & Truck Safety Scorecard */}
+      <div className="card">
+        <b style={{ display: "block", marginBottom: 10 }}>🏆 ตารางคะแนนความปลอดภัยรายคนขับและรถ (Driver & Vehicle Safety Score)</b>
+        <table>
+          <thead>
+            <tr>
+              <th>รถ / ทะเบียน</th>
+              <th>ยี่ห้อ / ข้อมูลรถ</th>
+              <th>ผู้ขับรถ (พนักงาน)</th>
+              <th>คะแนนความปลอดภัย</th>
+              <th>🟡 เตือน</th>
+              <th>🔴 อันตราย</th>
+              <th>ยืนยัน/ปิดเคสแล้ว</th>
+              <th>เคสค้าง</th>
+            </tr>
+          </thead>
+          <tbody>
+            {trucks.map((t) => {
+              // Deduct 12 pts per red alarm, 3 pts per yellow warning (min 0, max 100)
+              const score = Math.max(0, 100 - t.alarm_count * 12 - t.warn_count * 3);
+              const scoreLevel = score >= 80 ? "l0" : score >= 55 ? "l1" : "l2";
+              return (
+                <tr key={t.id}>
+                  <td>
+                    <b>คันที่ {t.code}</b>
+                    {t.name && <div className="muted" style={{ fontSize: 12 }}>{t.name}</div>}
+                  </td>
+                  <td>
+                    <b>{[t.brand, t.model].filter(Boolean).join(" ") || "—"}</b>
+                    {t.vehicle_info && <div className="muted" style={{ fontSize: 12 }}>{t.vehicle_info}</div>}
+                  </td>
+                  <td>
+                    <b>{t.driver_name || "—"}</b>
+                    {t.driver_code && <span className="muted"> ({t.driver_code})</span>}
+                    {t.driver_phone && <div className="muted" style={{ fontSize: 12 }}>📞 {t.driver_phone}</div>}
+                  </td>
+                  <td><span className={`pill ${scoreLevel}`}>{score} / 100</span></td>
+                  <td>{t.warn_count}</td>
+                  <td><b style={{ color: t.alarm_count ? "var(--alarm)" : undefined }}>{t.alarm_count}</b></td>
+                  <td>{t.closed_count}</td>
+                  <td>{t.open_count || "—"}</td>
+                </tr>
+              );
+            })}
+            {!trucks.length && <tr><td colSpan={8} className="muted">ยังไม่มีข้อมูลรถ</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}

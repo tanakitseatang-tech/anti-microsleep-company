@@ -1,12 +1,13 @@
-// C4: alert list with filters, vehicle & driver info, close a case.
+// C4 + C8: alert list with Thai reasons, Excel/CSV & PDF export, LINE switch, and case closing.
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sql, ensureTruckColumns } from "@/lib/db";
 import { currentUser, canManage } from "@/lib/auth";
-import { LEVEL_TH, thTime } from "@/lib/format";
+import { LEVEL_TH, thTime, thReasons } from "@/lib/format";
 import CloseButton from "../components/CloseButton";
 import AutoRefresh from "../components/AutoRefresh";
 import LineTestButton from "../components/LineTestButton";
+import AlertsExport from "../components/AlertsExport";
 import { escalateFromPage } from "@/lib/escalatePage";
 
 export const dynamic = "force-dynamic";
@@ -30,19 +31,41 @@ export default async function Alerts({ searchParams }) {
     ORDER BY e.happened_at DESC
     LIMIT 300`;
 
+  const exportList = events.map((e) => {
+    const carSub = [e.truck_name, e.brand, e.model].filter(Boolean).join(" · ");
+    const drvName = e.driver_code || [e.t_driver_name, e.t_driver_code ? `(${e.t_driver_code})` : ""].filter(Boolean).join(" ");
+    const statusTh = e.closed_at
+      ? `ปิดแล้ว (${e.closed_by || "คนขับ"})${e.close_note ? `: ${e.close_note}` : ""}`
+      : "เปิดอยู่";
+    return {
+      time_th: thTime(e.happened_at),
+      truck: e.truck,
+      car_sub: carSub,
+      driver_label: drvName,
+      phone: e.t_driver_phone,
+      level_th: LEVEL_TH[e.level],
+      reasons_th: thReasons(e.reasons),
+      speed: e.speed,
+      lat: e.lat,
+      lon: e.lon,
+      status_th: statusTh,
+    };
+  });
+
   return (
     <>
       <AutoRefresh seconds={30} />
       <h1>การแจ้งเตือน</h1>
-      <div className="filters">
+      <div className="filters" style={{ alignItems: "center" }}>
         <Link className="btn" href="/alerts">เคสที่ยังเปิด</Link>
         <Link className="btn" href="/alerts?show=all">ทั้งหมด (90 วันล่าสุด)</Link>
+        <AlertsExport events={exportList} />
         {user.role === "admin" && <LineTestButton />}
       </div>
       <div className="card">
         <table>
           <thead>
-            <tr><th>เวลา</th><th>รถ / ยี่ห้อ</th><th>ผู้ขับรถ</th><th>ระดับ</th><th>สาเหตุ</th><th>ความเร็ว</th><th>ตำแหน่ง</th><th>เคส</th></tr>
+            <tr><th>เวลา</th><th>รถ / ยี่ห้อ</th><th>ผู้ขับรถ</th><th>ระดับ</th><th>สาเหตุ (ภาษาไทย)</th><th>ความเร็ว</th><th>ตำแหน่ง</th><th>เคส</th></tr>
           </thead>
           <tbody>
             {events.map((e) => {
@@ -60,7 +83,7 @@ export default async function Alerts({ searchParams }) {
                     {e.t_driver_phone && <div className="muted" style={{ fontSize: 12 }}>📞 {e.t_driver_phone}</div>}
                   </td>
                   <td><span className={`pill l${e.level}`}>{LEVEL_TH[e.level]}</span></td>
-                  <td style={{ whiteSpace: "normal", minWidth: 180 }}>{(e.reasons || []).join(" · ") || "—"}</td>
+                  <td style={{ whiteSpace: "normal", minWidth: 180 }}><b>{thReasons(e.reasons)}</b></td>
                   <td>{e.speed == null ? "—" : `${Math.round(e.speed)} กม./ชม.`}</td>
                   <td>
                     {e.lat == null ? "—" : (

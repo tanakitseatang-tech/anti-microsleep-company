@@ -1,9 +1,10 @@
-// C7: manage trucks & driver datasheet (admin/manager): add/edit vehicle & driver info, bulk CSV/Excel datasheet import.
+// C7 + C1: manage trucks & driver datasheet + manage 3 user roles (admin/manager/viewer).
 import { redirect } from "next/navigation";
 import { sql, ensureTruckColumns } from "@/lib/db";
 import { currentUser, canManage } from "@/lib/auth";
 import { thTime, isOnline } from "@/lib/format";
 import TruckAdmin from "../components/TruckAdmin";
+import UserAdmin from "../components/UserAdmin";
 
 export const dynamic = "force-dynamic";
 
@@ -32,10 +33,23 @@ export default async function Trucks() {
     seen: thTime(t.last_seen),
     version: t.app_version,
   }));
+
+  let users = [];
+  if (user.role === "admin") {
+    const uRows = await sql`SELECT id, username, role, locked_until FROM users ORDER BY id ASC`;
+    users = uRows.map((u) => ({
+      id: u.id,
+      username: u.username,
+      role: u.role,
+      locked: Boolean(u.locked_until && new Date(u.locked_until).getTime() > Date.now()),
+    }));
+  }
+
   return (
     <>
       <h1>จัดการข้อมูลรถและพนักงานขับรถ (Datasheet)</h1>
       <TruckAdmin trucks={rows} />
+      {user.role === "admin" && <UserAdmin users={users} currentUserId={user.id} />}
     </>
   );
 }
