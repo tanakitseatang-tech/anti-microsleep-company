@@ -3,7 +3,8 @@
 import { NextResponse } from "next/server";
 import { SESSION_COOKIE, readSessionToken } from "./lib/session";
 
-const PUBLIC = ["/login", "/api/auth/login", "/api/ingest/", "/api/cron/"];
+// /setup and /api/setup only work while the database has no users (see app/api/setup).
+const PUBLIC = ["/login", "/setup", "/api/auth/login", "/api/setup", "/api/ingest/", "/api/cron/"];
 
 export async function middleware(request) {
   const { pathname } = request.nextUrl;

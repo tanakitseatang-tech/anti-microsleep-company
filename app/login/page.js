@@ -32,6 +32,7 @@ export default function LoginPage() {
       <input name="password" type="password" placeholder="รหัสผ่าน" autoComplete="current-password" required />
       <button className="primary" disabled={busy}>{busy ? "กำลังเข้า…" : "เข้าสู่ระบบ"}</button>
       <div className="err">{err}</div>
+      <a className="muted" href="/setup" style={{ fontSize: 13 }}>ติดตั้งใหม่? ตั้งค่าครั้งแรก</a>
     </form>
   );
 }

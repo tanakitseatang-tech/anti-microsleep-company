@@ -18,7 +18,10 @@
 - **S5** API key รายคัน (เก็บแค่ค่า hash) ยกเลิกได้
 - **PDPA** เก็บแค่ข้อมูลเหตุการณ์ ไม่มีวิดีโอ, ลบอัตโนมัติหลัง 90 วัน (Vercel Cron)
 
-ยังไม่มี: C3 แจ้งเตือน LINE/SMS · C5–C6 รายงาน/heatmap · C7 หน้าจัดการรถ (ตอนนี้ใช้สคริปต์) · C8 ส่งออก Excel/PDF · 2FA
+- **C7** หน้าจัดการรถ (admin): เพิ่มรถ, ออก API key ใหม่, ยกเลิก key
+- หน้า `/setup` ตั้งค่าครั้งแรกบนเว็บ (สร้างตาราง + admin คนแรก)
+
+ยังไม่มี: C3 แจ้งเตือน LINE/SMS · C5–C6 รายงาน/heatmap · หน้าจัดการผู้ใช้ (ตอนนี้ใช้สคริปต์) · C8 ส่งออก Excel/PDF · 2FA
 และ **บอร์ดยังไม่ได้ส่งข้อมูลมา** (ต้องเพิ่มคิว S2 ใน `main.py` บนบอร์ด)
 
 ## ไฟล์ในโปรเจค
@@ -55,23 +58,21 @@ git push -u origin main
 ```
 
 ## ขึ้น Vercel
-1. vercel.com → **Add New → Project** → เลือก repo `anti-microsleep-company` → **Deploy** (ครั้งแรกจะ error เพราะยังไม่มีฐานข้อมูล ไม่เป็นไร)
+1. vercel.com → **Add New → Project** → เลือก repo `anti-microsleep-company` → **Deploy**
 2. ในโปรเจค → แท็บ **Storage** → **Create Database → Neon (Postgres)** → Connect กับโปรเจคนี้ (จะได้ `DATABASE_URL` อัตโนมัติ)
-3. **Settings → Environment Variables** เพิ่ม
-   - `SESSION_SECRET` = ข้อความสุ่มยาว ≥ 32 ตัว
-   - `CRON_SECRET` = ข้อความสุ่มอีกอัน
-4. **Deployments → Redeploy**
+3. **Deployments → Redeploy** (ให้เว็บเห็นฐานข้อมูล)
 
-## ตั้งค่าครั้งแรก (บนคอม)
-```bash
-npm install
-npx vercel link
-npx vercel env pull .env.local
-npm run db:init
-npm run create-user -- admin admin
-npm run add-truck -- 7 "รถ 7"
-```
-`add-truck` จะพิมพ์ API key ของรถคันนั้น **ครั้งเดียว** → เอาไปใส่บนบอร์ดที่ `~/ArduinoApps/anti-microsleep/company_api_key.txt`
+ไม่ต้องตั้งค่าลับเอง: กุญแจคุกกี้ล็อกอินสร้างจาก `DATABASE_URL` ให้อัตโนมัติ
+(ถ้าอยากตั้งเองใส่ `SESSION_SECRET` ≥ 32 ตัว, และ `CRON_SECRET` เพื่อล็อก /api/cron/cleanup)
+
+## ตั้งค่าครั้งแรก (บนเว็บ)
+1. เปิด `https://<โดเมน>.vercel.app/setup` → ตั้งชื่อผู้ใช้และรหัสผ่านผู้ดูแล (admin)
+   หน้านี้สร้างตารางในฐานข้อมูลให้ และใช้ได้ครั้งเดียว (มีผู้ใช้แล้วจะปิดเอง)
+2. เมนู **จัดการรถ** → ใส่รหัสรถ (เช่น `7`) → **เพิ่มรถ / ออก key ใหม่**
+   API key จะแสดง **ครั้งเดียว** → เอาไปใส่บนบอร์ดที่ `~/ArduinoApps/anti-microsleep/company_api_key.txt`
+
+ทางเลือกแบบคอมมานด์ไลน์ (ต้องมี `.env.local` จาก `npx vercel env pull .env.local`):
+`npm run db:init` · `npm run create-user -- <ชื่อ> <admin|manager|viewer>` · `npm run add-truck -- <รหัสรถ> ["ชื่อ"]`
 
 ## ทดสอบส่งข้อมูลแบบบอร์ด
 ```bash
