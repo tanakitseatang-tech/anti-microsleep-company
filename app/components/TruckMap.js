@@ -7,8 +7,7 @@ function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-// C2: every truck's last known position. trucks = [{code, name, lat, lon, level, online, seen}]
-// The map is created once; on each refresh only the markers are redrawn (zoom/pan are kept).
+// C2: every truck's last known position + vehicle & driver details in popup.
 export default function TruckMap({ trucks }) {
   const box = useRef(null);
   const st = useRef({ L: null, map: null, layer: null, fitted: false });
@@ -18,7 +17,7 @@ export default function TruckMap({ trucks }) {
     (async () => {
       const L = (await import("leaflet")).default;
       if (cancelled || !box.current || st.current.map) return;
-      const map = L.map(box.current).setView([13.4, 101.0], 6);   // Thailand
+      const map = L.map(box.current).setView([13.4, 101.0], 6);
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 18,
         attribution: "&copy; OpenStreetMap contributors",
@@ -34,7 +33,7 @@ export default function TruckMap({ trucks }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => { draw(trucks); });   // after every render (new data from the auto refresh)
+  useEffect(() => { draw(trucks); });
 
   function draw(list) {
     const { L, map, layer } = st.current;
@@ -44,9 +43,15 @@ export default function TruckMap({ trucks }) {
     for (const t of list) {
       if (t.lat == null || t.lon == null) continue;
       const color = t.online ? COLORS[t.level ?? 0] : COLORS.off;
+      const car = [t.brand, t.model, t.vehicle_info ? `(${t.vehicle_info})` : ""].filter(Boolean).join(" ");
+      const drv = [t.driver_name, t.driver_code ? `(${t.driver_code})` : "", t.driver_phone ? `📞 ${t.driver_phone}` : ""].filter(Boolean).join(" ");
+      const html =
+        `<b>รถคันที่ ${esc(t.code)}</b>${t.name ? " · " + esc(t.name) : ""}<br>` +
+        (car ? `🚚 ${esc(car)}<br>` : "") +
+        (drv ? `👤 ${esc(drv)}<br>` : "") +
+        `${t.online ? "🟢 ออนไลน์" : "⚪ ขาดการติดต่อ"} · ${esc(t.seen)}`;
       L.circleMarker([t.lat, t.lon], { radius: 9, color: "#fff", weight: 2, fillColor: color, fillOpacity: 1 })
-        .bindPopup(`<b>รถ ${esc(t.code)}</b>${t.name ? " · " + esc(t.name) : ""}<br>` +
-                   `${t.online ? "ออนไลน์" : "ขาดการติดต่อ"} · ${esc(t.seen)}`)
+        .bindPopup(html)
         .addTo(layer);
       pts.push([t.lat, t.lon]);
     }

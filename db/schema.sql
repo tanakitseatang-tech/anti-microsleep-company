@@ -16,7 +16,13 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS trucks (
   id            SERIAL PRIMARY KEY,
   code          TEXT UNIQUE NOT NULL,            -- e.g. "7" or a licence plate
-  name          TEXT,
+  name          TEXT,                            -- licence plate / nickname
+  brand         TEXT,                            -- vehicle brand (e.g. Isuzu, Hino, Toyota)
+  model         TEXT,                            -- vehicle model (e.g. ELF NMR 130, Hilux Revo)
+  vehicle_info  TEXT,                            -- vehicle type / extra details (e.g. 6 ล้อตู้ทึบ)
+  driver_code   TEXT,                            -- employee ID (e.g. EMP001)
+  driver_name   TEXT,                            -- driver full name
+  driver_phone  TEXT,                            -- driver phone number
   api_key_hash  TEXT UNIQUE NOT NULL,
   key_revoked   BOOLEAN NOT NULL DEFAULT false,
   last_seen     TIMESTAMPTZ,                     -- S3 heartbeat time

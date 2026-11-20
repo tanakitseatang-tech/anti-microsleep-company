@@ -28,9 +28,10 @@ export async function POST(request) {
     const at = boardTime(e?.t);
     if (level === null || at === null) { skipped++; continue; }
     const reasons = Array.isArray(e.reasons) ? e.reasons.slice(0, 10).map((r) => str(r, 120)).filter(Boolean) : [];
+    const driverLabel = str(e.driver, 60) || [truck.driver_name, truck.driver_code].filter(Boolean).join(" · ") || null;
     const rows = await sql`
       INSERT INTO events (truck_id, event_uid, level, reasons, driver_code, happened_at, lat, lon, speed)
-      VALUES (${truck.id}, ${str(e.id, 64)}, ${level}, ${reasons}, ${str(e.driver, 32)}, ${at},
+      VALUES (${truck.id}, ${str(e.id, 64)}, ${level}, ${reasons}, ${driverLabel}, ${at},
               ${num(e.lat, -90, 90)}, ${num(e.lon, -180, 180)}, ${num(e.speed, 0, 300)})
       ON CONFLICT (truck_id, event_uid) DO NOTHING
       RETURNING id`;
