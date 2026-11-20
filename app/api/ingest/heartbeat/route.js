@@ -14,6 +14,10 @@ export async function POST(request) {
   let b;
   try { b = await request.json(); } catch { b = {}; }
   const lat = num(b.lat, -90, 90), lon = num(b.lon, -180, 180);
+  // board's own Wi-Fi address (for the /go/<truck> link to the driver page) + the internet
+  // address it sends from (the driver's phone hotspot), used by /go to find "my" truck
+  const localIp = /^\d{1,3}(\.\d{1,3}){3}$/.test(String(b.local_ip || "")) ? b.local_ip : null;
+  const publicIp = (request.headers.get("x-forwarded-for") || "").split(",")[0].trim().slice(0, 64) || null;
   await sql`
     UPDATE trucks SET
       last_seen   = now(),
@@ -22,7 +26,10 @@ export async function POST(request) {
       last_speed  = ${num(b.speed, 0, 300)},
       last_level  = ${num(b.level, 0, 2)},
       camera_ok   = ${typeof b.camera_ok === "boolean" ? b.camera_ok : null},
-      app_version = ${str(b.version, 40)}
+      app_version = ${str(b.version, 40)},
+      local_ip    = ${localIp},
+      wifi_ssid   = ${str(b.wifi, 64)},
+      public_ip   = ${publicIp}
     WHERE id = ${truck.id}`;
   // C3: red alarm still open after 1 minute (driver did not press "ฉันตื่นแล้ว") → admin LINE
   try {
