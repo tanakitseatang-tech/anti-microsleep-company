@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { sql } from "@/lib/db";
 import { SESSION_COOKIE, createSessionToken, sessionCookieOptions } from "@/lib/session";
+import { dbErrorKind, dbErrorMessage } from "@/lib/dberror";
 
 export const runtime = "nodejs";
 
@@ -11,6 +12,16 @@ const LOCK_MINUTES = 15;      // ... lock the account this long
 const DUMMY_HASH = bcrypt.hashSync("not-a-real-password", 10);
 
 export async function POST(request) {
+  try {
+    return await login(request);
+  } catch (e) {
+    const kind = dbErrorKind(e);
+    console.error("login: database error", e?.code, e?.message);
+    return NextResponse.json({ ok: false, error: dbErrorMessage(kind), kind }, { status: 503 });
+  }
+}
+
+async function login(request) {
   let body;
   try { body = await request.json(); } catch { body = {}; }
   const username = String(body.username || "").trim().toLowerCase();
