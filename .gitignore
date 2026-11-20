@@ -1,0 +1,10 @@
+node_modules/
+.next/
+out/
+.vercel/
+# secrets: real values live only in Vercel > Settings > Environment Variables
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
