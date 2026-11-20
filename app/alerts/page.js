@@ -52,7 +52,7 @@ export default async function Alerts({ searchParams }) {
                 </td>
                 <td>
                   {e.closed_at
-                    ? <span className="muted">ปิดแล้ว ({e.closed_by}){e.close_note ? `: ${e.close_note}` : ""}</span>
+                    ? <span className="muted">ปิดแล้ว ({e.closed_by || "คนขับ"}){e.close_note ? `: ${e.close_note}` : ""}</span>
                     : canManage(user) ? <CloseButton id={e.id} /> : <span className="muted">เปิดอยู่</span>}
                 </td>
               </tr>
