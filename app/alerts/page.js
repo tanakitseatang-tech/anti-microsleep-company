@@ -6,6 +6,7 @@ import { currentUser, canManage } from "@/lib/auth";
 import { LEVEL_TH, thTime } from "@/lib/format";
 import CloseButton from "../components/CloseButton";
 import AutoRefresh from "../components/AutoRefresh";
+import LineTestButton from "../components/LineTestButton";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,7 @@ export default async function Alerts({ searchParams }) {
       <div className="filters">
         <Link className="btn" href="/alerts">เคสที่ยังเปิด</Link>
         <Link className="btn" href="/alerts?show=all">ทั้งหมด (90 วันล่าสุด)</Link>
+        {user.role === "admin" && <LineTestButton />}
       </div>
       <div className="card">
         <table>
