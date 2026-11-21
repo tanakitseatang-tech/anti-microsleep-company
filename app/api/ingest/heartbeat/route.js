@@ -17,14 +17,18 @@ export async function POST(request) {
   const lat = num(b.lat, -90, 90), lon = num(b.lon, -180, 180);
   // board's own Wi-Fi address (for the /go/<truck> link to the driver page) + the internet
   // address it sends from (the driver's phone hotspot), used by /go to find "my" truck
-  const localIp = /^\d{1,3}(\.\d{1,3}){3}$/.test(String(b.local_ip || "")) ? b.local_ip : null;
+  // text only (a list like ["192.168.1.5"] would pass the test through String()), each part 0-255
+  const ipText = typeof b.local_ip === "string" ? b.local_ip.trim() : "";
+  const localIp = /^\d{1,3}(\.\d{1,3}){3}$/.test(ipText) && ipText.split(".").every((p) => Number(p) <= 255)
+    ? ipText : null;
   const publicIp = (request.headers.get("x-forwarded-for") || "").split(",")[0].trim().slice(0, 64) || null;
 
   // If the board sends a driver_code (e.g. "001" from shift check-in), resolve against the drivers directory
-  const rawDriverCode = typeof b.driver_code === "string" ? b.driver_code.trim() : null;
+  // normalizeDriverCode() itself strips "EMP" / "EMP-" / "emp_" and pads 1-3 digits; a code that
+  // normalises to nothing (e.g. just "EMP") is treated as no code
+  const norm = typeof b.driver_code === "string" ? normalizeDriverCode(b.driver_code) : "";
   let matchedDriver = null;
-  if (rawDriverCode) {
-    const norm = normalizeDriverCode(rawDriverCode.replace(/^EMP/i, ""));
+  if (norm) {
     // same rule as normalizeDriverCode() in SQL: strip EMP, pad 1-3 digits to 3 (old rows like "EMP1")
     const [found] = await sql`
       SELECT code, name, phone FROM drivers
