@@ -18,5 +18,5 @@ export async function GET(request) {
   }
   await ensureTruckColumns();
   const sent = await escalateOverdue({ origin: url.origin });
-  return NextResponse.json({ ok: true, checked: true, results: sent.length });
+  return NextResponse.json({ ok: true, checked: true, count: sent.length, results: sent });
 }
