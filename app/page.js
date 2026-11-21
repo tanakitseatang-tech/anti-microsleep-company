@@ -11,6 +11,18 @@ import { escalateFromPage } from "@/lib/escalatePage";
 
 export const dynamic = "force-dynamic";
 
+// Driver resting (picked on the board): "☕ พักถึง 14:30" or, once over, "☕ พักเกินเวลา +8 นาที".
+function restInfo(restUntil) {
+  if (!restUntil) return null;
+  const end = new Date(restUntil).getTime();
+  const overMin = Math.floor((Date.now() - end) / 60e3);
+  if (overMin > 12 * 60) return null;                  // stale (board never came back)
+  const hhmm = new Date(end).toLocaleTimeString("th-TH", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit" });
+  return Date.now() < end
+    ? { over: false, text: `☕ พักถึง ${hhmm}` }
+    : { over: true, text: `☕ พักเกินเวลา +${Math.max(0, overMin)} นาที` };
+}
+
 export default async function Dashboard() {
   if (!(await currentUser())) redirect("/login");
   await ensureTruckColumns();
@@ -18,7 +30,7 @@ export default async function Dashboard() {
   const trucks = await sql`
     SELECT t.id, t.code, t.name, t.brand, t.model, t.vehicle_info,
            t.driver_code, t.driver_name, t.driver_phone,
-           t.last_seen, t.last_lat, t.last_lon, t.last_speed, t.last_level, t.camera_ok,
+           t.last_seen, t.last_lat, t.last_lon, t.last_speed, t.last_level, t.camera_ok, t.rest_until,
            (SELECT count(*)::int FROM events e WHERE e.truck_id = t.id AND e.closed_at IS NULL) AS open_alerts,
            (SELECT json_build_object('level', e.level, 'reasons', e.reasons, 'at', e.happened_at,
                                      'open', e.closed_at IS NULL)
@@ -44,6 +56,7 @@ export default async function Dashboard() {
     seen: thTime(t.last_seen),
     speed: t.last_speed,
     camera_ok: t.camera_ok,
+    rest: restInfo(t.rest_until),
     open: t.open_alerts,
     last_event: t.last_event
       ? { level: t.last_event.level, reasons: thReasons(t.last_event.reasons), at: thTime(t.last_event.at), open: t.last_event.open }
@@ -112,9 +125,12 @@ export default async function Dashboard() {
                     )}
                   </td>
                   <td>
-                    {r.online
-                      ? <span className={`pill l${r.level ?? 0}`}>{LEVEL_TH[r.level ?? 0]}</span>
-                      : <span className="pill off">ขาดการติดต่อ</span>}
+                    {r.rest
+                      ? <span className={`pill ${r.rest.over ? "l1" : "l0"}`}>{r.rest.text}</span>
+                      : r.online
+                        ? <span className={`pill l${r.level ?? 0}`}>{LEVEL_TH[r.level ?? 0]}</span>
+                        : <span className="pill off">ขาดการติดต่อ</span>}
+                    {r.rest && !r.online && <div className="muted" style={{ fontSize: 12 }}>บอร์ดปิดอยู่ (ดับเครื่องพัก)</div>}
                   </td>
                   <td>{r.speed == null ? "—" : `${Math.round(r.speed)} กม./ชม.`}</td>
                   <td>{r.camera_ok == null ? "—" : r.camera_ok ? "ปกติ" : "⚠️ ไม่มีภาพ"}</td>
