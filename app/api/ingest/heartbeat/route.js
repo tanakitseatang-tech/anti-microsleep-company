@@ -99,8 +99,9 @@ export async function POST(request) {
     drivers = await sql`SELECT code, name FROM drivers ORDER BY code ASC LIMIT 200`;
   } catch {}
 
-  // One-click key provisioning: if admin pressed "ออก Key" within the last 2 min, hand it to the board once.
+  // One-click key provisioning / removal: if admin pressed "ออก Key" or "ปลดล็อก Key" within 2 min, hand to board once.
   let provisionKey = null;
+  let clearKey = false;
   try {
     const [pk] = await sql`
       SELECT pending_api_key FROM trucks
@@ -108,7 +109,8 @@ export async function POST(request) {
         AND pending_api_key IS NOT NULL
         AND pending_key_expires_at > now()`;
     if (pk?.pending_api_key) {
-      provisionKey = pk.pending_api_key;
+      if (pk.pending_api_key === "__CLEAR__") clearKey = true;
+      else provisionKey = pk.pending_api_key;
       await sql`
         UPDATE trucks SET pending_api_key = NULL, pending_key_expires_at = NULL
         WHERE id = ${truck.id}`;
@@ -127,5 +129,6 @@ export async function POST(request) {
     driver: matchedDriver,
     drivers,
     ...(provisionKey ? { provision_key: provisionKey } : {}),
+    ...(clearKey ? { clear_key: true } : {}),
   });
 }
