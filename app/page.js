@@ -79,7 +79,7 @@ export default async function Dashboard() {
           {manage && <Link className="btn" href="/trucks">📋 จัดการรถ / นำเข้า Datasheet พนักงาน</Link>}
         </div>
       </div>
-      <TruckMap trucks={rows} today={today} />
+      <TruckMap trucks={rows} today={today} canManage={manage} />
     </>
   );
 }
