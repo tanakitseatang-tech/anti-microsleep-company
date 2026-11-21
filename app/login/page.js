@@ -1,9 +1,13 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function LoginPage() {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(false);   // show "first-time setup" only while it is possible
+  useEffect(() => {
+    fetch("/api/setup").then((r) => r.json()).then((j) => setSetupOpen(!!j.open)).catch(() => {});
+  }, []);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -32,7 +36,7 @@ export default function LoginPage() {
       <input name="password" type="password" placeholder="รหัสผ่าน" autoComplete="current-password" required />
       <button className="primary" disabled={busy}>{busy ? "กำลังเข้า…" : "เข้าสู่ระบบ"}</button>
       <div className="err">{err}</div>
-      <a className="muted" href="/setup" style={{ fontSize: 13 }}>ติดตั้งใหม่? ตั้งค่าครั้งแรก</a>
+      {setupOpen && <a className="muted" href="/setup" style={{ fontSize: 13 }}>ติดตั้งใหม่? ตั้งค่าครั้งแรก</a>}
     </form>
   );
 }
