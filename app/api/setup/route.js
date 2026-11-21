@@ -21,19 +21,34 @@ async function hasUsers() {
   try {
     const [r] = await sql`SELECT count(*)::int AS n FROM users`;
     return r.n > 0;
-  } catch {
-    return false;                       // table not created yet
+  } catch (e) {
+    if (e?.code === "42P01") return false;   // table not created yet = setup still open
+    throw e;                                 // database down: do NOT treat as "no users"
   }
 }
 
 // GET: is setup still open?
 export async function GET() {
-  return NextResponse.json({ open: !(await hasUsers()) });
+  try {
+    return NextResponse.json({ open: !(await hasUsers()) });
+  } catch {
+    return NextResponse.json({ open: false, error: "database unavailable" }, { status: 503 });
+  }
 }
 
 export async function POST(request) {
+  try {
+    return await setup(request);
+  } catch (e) {
+    console.error("setup failed", e?.code, e?.message);
+    return NextResponse.json({ ok: false, error: "เชื่อมต่อฐานข้อมูลไม่ได้ ลองใหม่อีกครั้ง" }, { status: 503 });
+  }
+}
+
+async function setup(request) {
   let b;
   try { b = await request.json(); } catch { b = {}; }
+  if (!b || typeof b !== "object") b = {};
   const username = String(b.username || "").trim().toLowerCase();
   const password = String(b.password || "");
   if (!/^[a-z0-9._-]{3,32}$/.test(username)) {
