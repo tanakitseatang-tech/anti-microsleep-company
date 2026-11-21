@@ -20,6 +20,18 @@ export default async function Alerts({ searchParams }) {
   await ensureTruckColumns();
   await escalateFromPage();
   const show = ["all", "archived"].includes(searchParams?.show) ? searchParams.show : "open";
+  // optional "red only" filter (?level=2), combined with the show=open/all/archived filter
+  const redOnly = searchParams?.level === "2";
+  const minLevel = redOnly ? 2 : 0;
+  // build a link that keeps the other filter
+  const href = (s, red) => {
+    const p = new URLSearchParams();
+    if (s !== "open") p.set("show", s);
+    if (red) p.set("level", "2");
+    const qs = p.toString();
+    return qs ? `/alerts?${qs}` : "/alerts";
+  };
+  const on = { background: "var(--accent)", color: "#fff" }; // the filter that is active now
   const events = await sql`
     SELECT e.id, e.level, e.reasons, e.driver_code, e.happened_at, e.lat, e.lon, e.speed,
            e.closed_at, e.close_note,
@@ -32,6 +44,7 @@ export default async function Alerts({ searchParams }) {
     WHERE (CASE ${show}::text WHEN 'archived' THEN e.archived
                 WHEN 'all' THEN NOT e.archived
                 ELSE NOT e.archived AND e.closed_at IS NULL END)
+      AND (${minLevel}::int = 0 OR e.level >= ${minLevel}::int)
     ORDER BY e.happened_at DESC
     LIMIT 300`;
   const [{ open_count: openCount, archived_count: archivedCount }] = await sql`
@@ -62,15 +75,19 @@ export default async function Alerts({ searchParams }) {
   return (
     <>
       <AutoRefresh seconds={30} />
-      <h1>การแจ้งเตือน{show === "archived" ? " · ข้อมูลทดสอบที่ซ่อนไว้" : ""}</h1>
+      <h1>การแจ้งเตือน{show === "archived" ? " · ข้อมูลทดสอบที่ซ่อนไว้" : ""}{redOnly ? " · เฉพาะอันตราย (แดง)" : ""}</h1>
       <div className="filters" style={{ alignItems: "center" }}>
-        <Link className="btn" href="/alerts">เคสที่ยังเปิด</Link>
-        <Link className="btn" href="/alerts?show=all">ทั้งหมด (90 วันล่าสุด)</Link>
+        <Link className="btn" style={show === "open" ? on : undefined} href={href("open", redOnly)}>เคสที่ยังเปิด</Link>
+        <Link className="btn" style={show === "all" ? on : undefined} href={href("all", redOnly)}>ทั้งหมด (90 วันล่าสุด)</Link>
+        <Link className="btn" style={redOnly ? on : undefined} href={href(show, !redOnly)}
+          title={redOnly ? "กดอีกครั้งเพื่อแสดงทุกระดับ" : "แสดงเฉพาะการแจ้งเตือนระดับอันตราย (แดง)"}>
+          🔴 เฉพาะอันตราย (แดง){redOnly ? " ✓" : ""}
+        </Link>
         <AlertsExport events={exportList} />
         {canManage(user) && <CloseAllButton count={openCount} />}
         {user.role === "admin" && <LineTestButton />}
         {user.role === "admin" && show !== "archived" && <ArchiveButton />}
-        {archivedCount > 0 && <Link className="btn" href="/alerts?show=archived">🗂️ ข้อมูลทดสอบที่ซ่อน ({archivedCount})</Link>}
+        {archivedCount > 0 && <Link className="btn" href={href("archived", redOnly)}>🗂️ ข้อมูลทดสอบที่ซ่อน ({archivedCount})</Link>}
         {user.role === "admin" && show === "archived" && <ArchiveButton undo count={archivedCount} />}
       </div>
       <div className="card">
