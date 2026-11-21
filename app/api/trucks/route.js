@@ -1,7 +1,7 @@
 // C7 / S5: add/update a single truck or bulk-import a datasheet of many employees & vehicles.
 import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
-import { sql, ensureTruckColumns } from "@/lib/db";
+import { sql, ensureTruckColumns, normalizeDriverCode } from "@/lib/db";
 import { currentUser, canManage, hashApiKey } from "@/lib/auth";
 import { str } from "@/lib/validate";
 
@@ -39,6 +39,18 @@ async function upsertRow(r, makeNewKey = false) {
       driver_name  = COALESCE(${driver_name}, trucks.driver_name),
       driver_phone = COALESCE(${driver_phone}, trucks.driver_phone),
       api_key_hash = CASE WHEN ${Boolean(makeNewKey)} THEN ${keyHash} ELSE trucks.api_key_hash END`;
+  // Keep employee directory in sync when a truck row has both driver_code and driver_name
+  if (driver_code && driver_name) {
+    const normCode = normalizeDriverCode(driver_code.replace(/^EMP/i, ""));
+    if (normCode) {
+      await sql`
+        INSERT INTO drivers (code, name, phone)
+        VALUES (${normCode}, ${driver_name}, ${driver_phone})
+        ON CONFLICT (code) DO UPDATE SET
+          name  = EXCLUDED.name,
+          phone = COALESCE(EXCLUDED.phone, drivers.phone)`;
+    }
+  }
   return { code, key };
 }
 
