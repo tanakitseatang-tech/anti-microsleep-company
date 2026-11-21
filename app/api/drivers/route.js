@@ -16,7 +16,8 @@ export async function GET() {
 }
 
 async function upsertDriver(r) {
-  const code = normalizeDriverCode(r?.code);
+  // "EMP001" and "001" are the same driver (the datasheet import strips EMP too)
+  const code = normalizeDriverCode(String(r?.code ?? "").trim().replace(/^EMP/i, ""));
   const name = str(r?.name, 80);
   const phone = str(r?.phone, 40);
   if (!code || !name) return null;
@@ -29,7 +30,7 @@ async function upsertDriver(r) {
   // Also refresh any truck currently signed in with this driver code
   await sql`
     UPDATE trucks SET driver_name = ${name}, driver_phone = COALESCE(${phone}, driver_phone)
-    WHERE UPPER(COALESCE(driver_code, '')) = ${code}`;
+    WHERE REGEXP_REPLACE(UPPER(COALESCE(driver_code, '')), '^EMP', '') = ${code}`;
   return { code, name, phone };
 }
 
