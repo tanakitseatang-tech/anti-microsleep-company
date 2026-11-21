@@ -32,7 +32,9 @@ async function upsertRow(r, makeNewKey = false, replace = false) {
       ${driver_code}, ${driver_name}, ${driver_phone}, ${keyHash}
     )
     ON CONFLICT (code) DO UPDATE SET
-      key_revoked  = false,
+      -- editing / re-importing a revoked truck keeps it revoked; only an explicit new key
+      -- (issue_key, admin-checked in POST) or remove_key brings it back
+      key_revoked  = CASE WHEN ${Boolean(makeNewKey)}::boolean THEN false ELSE trucks.key_revoked END,
       name         = CASE WHEN ${replace} THEN ${name}::text ELSE COALESCE(${name}::text, trucks.name) END,
       brand        = CASE WHEN ${replace} THEN ${brand}::text ELSE COALESCE(${brand}::text, trucks.brand) END,
       model        = CASE WHEN ${replace} THEN ${model}::text ELSE COALESCE(${model}::text, trucks.model) END,
@@ -40,14 +42,15 @@ async function upsertRow(r, makeNewKey = false, replace = false) {
       driver_code  = CASE WHEN ${replace} THEN ${driver_code}::text ELSE COALESCE(${driver_code}::text, trucks.driver_code) END,
       driver_name  = CASE WHEN ${replace} THEN ${driver_name}::text ELSE COALESCE(${driver_name}::text, trucks.driver_name) END,
       driver_phone = CASE WHEN ${replace} THEN ${driver_phone}::text ELSE COALESCE(${driver_phone}::text, trucks.driver_phone) END,
-      -- re-adding a deleted/revoked truck must NOT bring its old (possibly stolen) key back
+      -- a revoked truck's old (possibly stolen) key is replaced, so even a later un-revoke
+      -- can never make that old key valid again (SET reads the old row values, before this update)
       api_key_hash = CASE WHEN ${Boolean(makeNewKey)} OR trucks.key_revoked THEN ${keyHash} ELSE trucks.api_key_hash END,
       key_required = CASE WHEN ${Boolean(makeNewKey)} OR trucks.key_revoked THEN false ELSE trucks.key_required END,
       pending_api_key = CASE WHEN ${Boolean(makeNewKey)} THEN ${key} ELSE trucks.pending_api_key END,
       pending_key_expires_at = CASE WHEN ${Boolean(makeNewKey)} THEN now() + interval '2 minutes' ELSE trucks.pending_key_expires_at END`;
   // Keep employee directory in sync when a truck row has both driver_code and driver_name
   if (driver_code && driver_name) {
-    const normCode = normalizeDriverCode(driver_code.replace(/^EMP/i, ""));
+    const normCode = normalizeDriverCode(driver_code); // EMP1 / emp001 / 1 -> 001
     if (normCode) {
       await sql`
         INSERT INTO drivers (code, name, phone)
@@ -79,6 +82,21 @@ export async function POST(request) {
       if (res) imported++; else skipped++;
     }
     return NextResponse.json({ ok: true, imported, skipped });
+  }
+
+  // A revoked truck can only be brought back (new key / unlock) by an admin: a manager cannot
+  // undo an admin's revoke. Editing the row is fine and keeps it revoked.
+  if ((b?.remove_key || b?.issue_key) && b?.code && user.role !== "admin") {
+    const c = str(b.code, 20);
+    if (c) {
+      const [t] = await sql`SELECT key_revoked FROM trucks WHERE code = ${c}`;
+      if (t?.key_revoked) {
+        return NextResponse.json(
+          { ok: false, error: "รถคันนี้ถูกเพิกถอนแล้ว เฉพาะผู้ดูแลระบบ (admin) เท่านั้นที่ยกเลิกได้" },
+          { status: 403 }
+        );
+      }
+    }
   }
 
   // Remove/unlock API key for a truck (returns to X-Truck-Code mode and tells board to clear its key file)
