@@ -4,6 +4,7 @@ import { sql, ensureTruckColumns } from "@/lib/db";
 import { currentUser, canManage } from "@/lib/auth";
 import { thTime, isOnline } from "@/lib/format";
 import TruckAdmin from "../components/TruckAdmin";
+import DriverAdmin from "../components/DriverAdmin";
 import UserAdmin from "../components/UserAdmin";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +35,13 @@ export default async function Trucks() {
     version: t.app_version,
   }));
 
+  const drivers = await sql`SELECT code, name, phone FROM drivers ORDER BY code ASC`;
+  const driverRows = drivers.map((d) => ({
+    code: d.code,
+    name: d.name,
+    phone: d.phone || "",
+  }));
+
   let users = [];
   if (user.role === "admin") {
     const uRows = await sql`SELECT id, username, role, locked_until FROM users ORDER BY id ASC`;
@@ -48,6 +56,7 @@ export default async function Trucks() {
   return (
     <>
       <h1>จัดการข้อมูลรถและพนักงานขับรถ (Datasheet)</h1>
+      <DriverAdmin drivers={driverRows} />
       <TruckAdmin trucks={rows} />
       {user.role === "admin" && <UserAdmin users={users} currentUserId={user.id} />}
     </>
