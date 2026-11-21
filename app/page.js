@@ -76,78 +76,7 @@ export default async function Dashboard() {
           <Link className="btn" href="/trucks">📋 จัดการรถ / นำเข้า Datasheet พนักงาน</Link>
         </div>
       </div>
-      <div className="tiles">
-        <div className="tile"><div className="k">รถออนไลน์</div><div className="v">{online} / {rows.length}</div></div>
-        <div className="tile"><div className="k">ขาดการติดต่อ</div><div className="v">{rows.length - online}</div></div>
-        <div className="tile"><div className="k">แจ้งเตือนวันนี้</div><div className="v">{today.total}</div></div>
-        <div className="tile"><div className="k">อันตราย (แดง) วันนี้</div><div className="v">{today.alarms}</div></div>
-      </div>
-      <div className="card"><TruckMap trucks={rows} /></div>
-      <div className="card">
-        <table>
-          <thead>
-            <tr>
-              <th>รหัสรถ / ทะเบียน</th>
-              <th>ยี่ห้อ / ข้อมูลรถ</th>
-              <th>ผู้ขับรถ (พนักงาน)</th>
-              <th>สถานะ</th>
-              <th>ความเร็ว</th>
-              <th>กล้อง</th>
-              <th>เคสค้าง</th>
-              <th>ติดต่อล่าสุด</th>
-              <th>ดูบนแผนที่</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => {
-              const carTitle = [r.brand, r.model].filter(Boolean).join(" ");
-              return (
-                <tr key={r.code}>
-                  <td>
-                    <b>คันที่ {r.code}</b>
-                    {r.name && <div className="muted" style={{ fontSize: 13 }}>{r.name}</div>}
-                  </td>
-                  <td style={{ whiteSpace: "normal", minWidth: 160 }}>
-                    {carTitle ? <b>{carTitle}</b> : <span className="muted">—</span>}
-                    {r.vehicle_info && <div className="muted" style={{ fontSize: 13 }}>{r.vehicle_info}</div>}
-                  </td>
-                  <td style={{ whiteSpace: "normal", minWidth: 170 }}>
-                    {r.driver_name || r.driver_code ? (
-                      <>
-                        <b>{r.driver_name || "—"}</b>
-                        {r.driver_code && <span className="muted"> ({r.driver_code})</span>}
-                        {r.driver_phone && (
-                          <div style={{ fontSize: 13 }}>
-                            <a href={`tel:${r.driver_phone}`}>📞 {r.driver_phone}</a>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <span className="muted">ยังไม่ระบุ (<Link href="/trucks">เพิ่มข้อมูล</Link>)</span>
-                    )}
-                  </td>
-                  <td>
-                    {r.rest
-                      ? <span className={`pill ${r.rest.over ? "l1" : "l0"}`}>{r.rest.text}</span>
-                      : r.online
-                        ? <span className={`pill l${r.level ?? 0}`}>{LEVEL_TH[r.level ?? 0]}</span>
-                        : <span className="pill off">ขาดการติดต่อ</span>}
-                    {r.rest && !r.online && <div className="muted" style={{ fontSize: 12 }}>บอร์ดปิดอยู่ (ดับเครื่องพัก)</div>}
-                  </td>
-                  <td>{r.speed == null ? "—" : `${Math.round(r.speed)} กม./ชม.`}</td>
-                  <td>{r.camera_ok == null ? "—" : r.camera_ok ? "ปกติ" : "⚠️ ไม่มีภาพ"}</td>
-                  <td>{r.open || "—"}</td>
-                  <td>{r.seen}</td>
-                  <td><FocusTruckButton code={r.code} hasCoords={r.lat != null && r.lon != null} /></td>
-                </tr>
-              );
-            })}
-            {!rows.length && (
-              <tr><td colSpan={9} className="muted">ยังไม่มีรถ — เพิ่มหรือนำเข้า Datasheet ที่หน้า <Link href="/trucks">จัดการรถ</Link></td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <TruckMap trucks={rows} today={today} />
     </>
   );
 }
