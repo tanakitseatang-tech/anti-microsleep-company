@@ -325,7 +325,7 @@ export default function TruckMap({ trucks, today = { total: 0, alarms: 0 } }) {
         for (let i = 0; i < simStateRef.current.length; i++) {
           const s = simStateRef.current[i];
           const curSpeed = Math.max(50, Math.min(95, s.speedKmh + (Math.random() - 0.5) * 4));
-          let dist = s.dist + 1.5 * (curSpeed / 3.6) * 4; // 4x visual speed so movement is clearly visible in a 5-min demo
+          let dist = s.dist + 1.5 * (curSpeed / 3.6); // 1x real-time highway speed
           let seg = s.seg;
           while (seg < s.pts.length - 1) {
             const a = s.pts[seg], b = s.pts[seg + 1];
