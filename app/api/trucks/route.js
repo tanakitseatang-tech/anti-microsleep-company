@@ -35,29 +35,32 @@ async function upsertRow(r, makeNewKey = false, replace = false) {
       -- editing / re-importing a revoked truck keeps it revoked; only an explicit new key
       -- (issue_key, admin-checked in POST) or remove_key brings it back
       key_revoked  = CASE WHEN ${Boolean(makeNewKey)}::boolean THEN false ELSE trucks.key_revoked END,
-      name         = CASE WHEN ${replace} THEN ${name}::text ELSE COALESCE(${name}::text, trucks.name) END,
-      brand        = CASE WHEN ${replace} THEN ${brand}::text ELSE COALESCE(${brand}::text, trucks.brand) END,
-      model        = CASE WHEN ${replace} THEN ${model}::text ELSE COALESCE(${model}::text, trucks.model) END,
-      vehicle_info = CASE WHEN ${replace} THEN ${vehicle_info}::text ELSE COALESCE(${vehicle_info}::text, trucks.vehicle_info) END,
-      driver_code  = CASE WHEN ${replace} THEN ${driver_code}::text ELSE COALESCE(${driver_code}::text, trucks.driver_code) END,
-      driver_name  = CASE WHEN ${replace} THEN ${driver_name}::text ELSE COALESCE(${driver_name}::text, trucks.driver_name) END,
-      driver_phone = CASE WHEN ${replace} THEN ${driver_phone}::text ELSE COALESCE(${driver_phone}::text, trucks.driver_phone) END,
+      name         = CASE WHEN ${Boolean(replace)}::boolean THEN ${name}::text ELSE COALESCE(${name}::text, trucks.name) END,
+      brand        = CASE WHEN ${Boolean(replace)}::boolean THEN ${brand}::text ELSE COALESCE(${brand}::text, trucks.brand) END,
+      model        = CASE WHEN ${Boolean(replace)}::boolean THEN ${model}::text ELSE COALESCE(${model}::text, trucks.model) END,
+      vehicle_info = CASE WHEN ${Boolean(replace)}::boolean THEN ${vehicle_info}::text ELSE COALESCE(${vehicle_info}::text, trucks.vehicle_info) END,
+      driver_code  = CASE WHEN ${Boolean(replace)}::boolean THEN ${driver_code}::text ELSE COALESCE(${driver_code}::text, trucks.driver_code) END,
+      driver_name  = CASE WHEN ${Boolean(replace)}::boolean THEN ${driver_name}::text ELSE COALESCE(${driver_name}::text, trucks.driver_name) END,
+      driver_phone = CASE WHEN ${Boolean(replace)}::boolean THEN ${driver_phone}::text ELSE COALESCE(${driver_phone}::text, trucks.driver_phone) END,
       -- a revoked truck's old (possibly stolen) key is replaced, so even a later un-revoke
       -- can never make that old key valid again (SET reads the old row values, before this update)
-      api_key_hash = CASE WHEN ${Boolean(makeNewKey)} OR trucks.key_revoked THEN ${keyHash} ELSE trucks.api_key_hash END,
-      key_required = CASE WHEN ${Boolean(makeNewKey)} OR trucks.key_revoked THEN false ELSE trucks.key_required END,
-      pending_api_key = CASE WHEN ${Boolean(makeNewKey)} THEN ${key} ELSE trucks.pending_api_key END,
-      pending_key_expires_at = CASE WHEN ${Boolean(makeNewKey)} THEN now() + interval '2 minutes' ELSE trucks.pending_key_expires_at END`;
-  // Keep employee directory in sync when a truck row has both driver_code and driver_name
+      api_key_hash = CASE WHEN ${Boolean(makeNewKey)}::boolean OR trucks.key_revoked THEN ${keyHash}::text ELSE trucks.api_key_hash END,
+      key_required = CASE WHEN ${Boolean(makeNewKey)}::boolean OR trucks.key_revoked THEN false ELSE trucks.key_required END,
+      pending_api_key = CASE WHEN ${Boolean(makeNewKey)}::boolean THEN ${key}::text ELSE trucks.pending_api_key END,
+      pending_key_expires_at = CASE WHEN ${Boolean(makeNewKey)}::boolean THEN now() + interval '2 minutes' ELSE trucks.pending_key_expires_at END`;
+  // Keep employee directory in sync when a truck row has both driver_code and driver_name.
+  // replace (single-truck edit): the directory gets exactly this phone, so a cleared phone stays
+  // cleared (the next heartbeat copies drivers.phone back to the truck). Import: keep the saved one.
   if (driver_code && driver_name) {
     const normCode = normalizeDriverCode(driver_code); // EMP1 / emp001 / 1 -> 001
     if (normCode) {
       await sql`
         INSERT INTO drivers (code, name, phone)
-        VALUES (${normCode}, ${driver_name}, ${driver_phone})
+        VALUES (${normCode}, ${driver_name}, ${driver_phone}::text)
         ON CONFLICT (code) DO UPDATE SET
           name  = EXCLUDED.name,
-          phone = COALESCE(EXCLUDED.phone, drivers.phone)`;
+          phone = CASE WHEN ${Boolean(replace)}::boolean THEN EXCLUDED.phone
+                       ELSE COALESCE(EXCLUDED.phone, drivers.phone) END`;
     }
   }
   return { code, key };
