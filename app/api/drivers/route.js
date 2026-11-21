@@ -19,7 +19,8 @@ export async function GET() {
 // replacePhone = false (datasheet import): an empty phone cell keeps the saved number.
 async function upsertDriver(r, replacePhone = false) {
   // "EMP001", "EMP1", "1" and "001" are the same driver (normalizeDriverCode strips EMP and pads)
-  const code = normalizeDriverCode(r?.code);
+  // str() first: a list/object code would otherwise become the text "[OBJECT OBJECT]"
+  const code = normalizeDriverCode(str(r?.code, 40));
   const name = str(r?.name, 80);
   const phone = str(r?.phone, 40);
   if (!code || !name) return null;
@@ -74,8 +75,20 @@ export async function DELETE(request) {
   await ensureTruckColumns();
   let b;
   try { b = await request.json(); } catch { b = {}; }
-  const code = normalizeDriverCode(b?.code);
+  const code = normalizeDriverCode(str(b?.code, 40));
   if (!code) return NextResponse.json({ ok: false, error: "bad code" }, { status: 400 });
-  await sql`DELETE FROM drivers WHERE code = ${code}`;
+  // same EMP / zero-padding rule as normalizeDriverCode(), so an old row saved as "EMP1" goes too
+  await sql`
+    DELETE FROM drivers
+    WHERE code = ${code}
+       OR (CASE WHEN REGEXP_REPLACE(UPPER(TRIM(code)), '^EMP[[:space:]_-]*', '') ~ '^[0-9]{1,3}$'
+                THEN LPAD(REGEXP_REPLACE(UPPER(TRIM(code)), '^EMP[[:space:]_-]*', ''), 3, '0')
+                ELSE REGEXP_REPLACE(UPPER(TRIM(code)), '^EMP[[:space:]_-]*', '') END) = ${code}`;
+  // a truck still signed in with this code must not keep showing the deleted person's name/phone
+  await sql`
+    UPDATE trucks SET driver_name = NULL, driver_phone = NULL
+    WHERE (CASE WHEN REGEXP_REPLACE(UPPER(TRIM(COALESCE(driver_code, ''))), '^EMP[[:space:]_-]*', '') ~ '^[0-9]{1,3}$'
+                THEN LPAD(REGEXP_REPLACE(UPPER(TRIM(COALESCE(driver_code, ''))), '^EMP[[:space:]_-]*', ''), 3, '0')
+                ELSE REGEXP_REPLACE(UPPER(TRIM(COALESCE(driver_code, ''))), '^EMP[[:space:]_-]*', '') END) = ${code}`;
   return NextResponse.json({ ok: true });
 }
