@@ -90,11 +90,11 @@ function TruckDetail({ t, onClose }) {
   useEffect(() => {
     if (!hasLoc) return;
     let alive = true;
-    setAddrState("loading");
+    // keep showing the last address while a small GPS move is looked up (no flicker every refresh)
     const id = setTimeout(() => {
       reverseGeocode(t.lat, t.lon)
-        .then((a) => { if (alive) { setAddr(a); setAddrState(a ? "ok" : "none"); } })
-        .catch(() => { if (alive) setAddrState("error"); });
+        .then((a) => { if (alive && a) { setAddr(a); setAddrState("ok"); } else if (alive) setAddrState((s) => (s === "ok" ? s : "none")); })
+        .catch(() => { if (alive) setAddrState((s) => (s === "ok" ? s : "error")); });
     }, 300);
     return () => { alive = false; clearTimeout(id); };
   }, [hasLoc, t.lat, t.lon]);
