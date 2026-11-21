@@ -15,23 +15,31 @@ export async function GET() {
   return NextResponse.json({ ok: true, drivers: rows });
 }
 
-async function upsertDriver(r) {
-  // "EMP001" and "001" are the same driver (the datasheet import strips EMP too)
-  const code = normalizeDriverCode(String(r?.code ?? "").trim().replace(/^EMP/i, ""));
+// replacePhone = true (saving one driver from the form): an emptied phone box clears the phone.
+// replacePhone = false (datasheet import): an empty phone cell keeps the saved number.
+async function upsertDriver(r, replacePhone = false) {
+  // "EMP001", "EMP1", "1" and "001" are the same driver (normalizeDriverCode strips EMP and pads)
+  const code = normalizeDriverCode(r?.code);
   const name = str(r?.name, 80);
   const phone = str(r?.phone, 40);
   if (!code || !name) return null;
-  await sql`
+  const rp = Boolean(replacePhone);
+  const [saved] = await sql`
     INSERT INTO drivers (code, name, phone)
-    VALUES (${code}, ${name}, ${phone})
+    VALUES (${code}, ${name}, ${phone}::text)
     ON CONFLICT (code) DO UPDATE SET
       name  = EXCLUDED.name,
-      phone = COALESCE(EXCLUDED.phone, drivers.phone)`;
+      phone = CASE WHEN ${rp}::boolean THEN EXCLUDED.phone ELSE COALESCE(EXCLUDED.phone, drivers.phone) END
+    RETURNING phone`;
+  const finalPhone = saved ? saved.phone ?? null : phone;
   // Also refresh any truck currently signed in with this driver code
+  // (truck codes may be stored as "EMP1" / "1" / "001": normalise them the same way in SQL)
   await sql`
-    UPDATE trucks SET driver_name = ${name}, driver_phone = COALESCE(${phone}, driver_phone)
-    WHERE REGEXP_REPLACE(UPPER(COALESCE(driver_code, '')), '^EMP', '') = ${code}`;
-  return { code, name, phone };
+    UPDATE trucks SET driver_name = ${name}, driver_phone = ${finalPhone}::text
+    WHERE (CASE WHEN REGEXP_REPLACE(UPPER(TRIM(COALESCE(driver_code, ''))), '^EMP[[:space:]_-]*', '') ~ '^[0-9]{1,3}$'
+                THEN LPAD(REGEXP_REPLACE(UPPER(TRIM(COALESCE(driver_code, ''))), '^EMP[[:space:]_-]*', ''), 3, '0')
+                ELSE REGEXP_REPLACE(UPPER(TRIM(COALESCE(driver_code, ''))), '^EMP[[:space:]_-]*', '') END) = ${code}`;
+  return { code, name, phone: finalPhone };
 }
 
 export async function POST(request) {
@@ -53,7 +61,7 @@ export async function POST(request) {
     return NextResponse.json({ ok: true, imported, skipped });
   }
 
-  const res = await upsertDriver(b);
+  const res = await upsertDriver(b, true);
   if (!res) {
     return NextResponse.json({ ok: false, error: "กรุณาระบุรหัสพนักงาน (เช่น 001) และชื่อพนักงาน" }, { status: 400 });
   }
