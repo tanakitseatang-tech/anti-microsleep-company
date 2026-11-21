@@ -12,11 +12,17 @@ export default function CloseButton({ id }) {
         const note = window.prompt("บันทึกการปิดเคส (เช่น โทรหาคนขับแล้ว ให้พักที่ปั๊มถัดไป)", "");
         if (note === null) return;
         setBusy(true);
-        await fetch(`/api/alerts/${id}/close`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ note }),
-        });
+        try {
+          const r = await fetch(`/api/alerts/${id}/close`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ note }),
+          });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok || j.ok === false) window.alert(j.error || "ปิดเคสไม่สำเร็จ (อาจหมดเวลาล็อกอิน ลองรีเฟรช)");
+        } catch {
+          window.alert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+        }
         setBusy(false);
         router.refresh();
       }}

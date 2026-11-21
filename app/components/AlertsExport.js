@@ -4,7 +4,8 @@ export default function AlertsExport({ events }) {
   function exportCsv() {
     const headers = ["เวลา", "รหัสรถ", "ทะเบียน/ยี่ห้อ", "ผู้ขับรถ", "เบอร์โทร", "ระดับ", "สาเหตุ", "ความเร็ว (กม./ชม.)", "ละติจูด", "ลองจิจูด", "สถานะเคส"];
     const esc = (v) => {
-      const s = String(v ?? "");
+      let s = String(v ?? "");
+      if (/^[=+@\t\r]/.test(s) || /^-[^\d]/.test(s)) s = "'" + s;   // Excel must not run it as a formula (negative numbers stay numbers)
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const rows = (events || []).map((e) => [

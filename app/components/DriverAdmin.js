@@ -3,9 +3,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 const SAMPLE_DRIVERS = [
-  { code: "001", name: "สมชาย ใจดี", phone: "081-234-5678" },
-  { code: "002", name: "วิชัย สายชล", phone: "089-876-5432" },
-  { code: "003", name: "กิตติพงศ์ ทองดี", phone: "086-555-4321" },
+  { code: "001", name: "สมชาย ใจดี", phone: "0XX-XXX-XXXX" },
+  { code: "002", name: "วิชัย สายชล", phone: "0XX-XXX-XXXX" },
+  { code: "003", name: "กิตติพงศ์ ทองดี", phone: "0XX-XXX-XXXX" },
 ];
 
 export default function DriverAdmin({ drivers }) {
@@ -31,23 +31,32 @@ export default function DriverAdmin({ drivers }) {
       setCode(""); setName(""); setPhone("");
       setMsg(`บันทึกรหัส ${d.driver?.code} (${d.driver?.name}) เรียบร้อยแล้ว`);
       router.refresh();
+    } catch {
+      setErr("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
     } finally {
       setBusy(false);
     }
   }
 
   async function loadSamples() {
+    // never overwrite a real driver (001–003 may already be real people)
+    const have = new Set((drivers || []).map((d) => String(d.code)));
+    const rows = SAMPLE_DRIVERS.filter((d) => !have.has(d.code));
+    if (!rows.length) { setErr("มีรหัส 001–003 อยู่แล้ว ไม่ใส่ตัวอย่างทับข้อมูลจริง"); return; }
+    if (!confirm(`เพิ่มพนักงานตัวอย่าง ${rows.length} คน (รหัส ${rows.map((d) => d.code).join(", ")})?`)) return;
     setBusy(true); setErr(""); setMsg("");
     try {
       const r = await fetch("/api/drivers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows: SAMPLE_DRIVERS }),
+        body: JSON.stringify({ rows }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) { setErr(d.error || "เพิ่มตัวอย่างไม่สำเร็จ"); return; }
-      setMsg(`เพิ่มรายชื่อพนักงานตัวอย่าง ${d.imported} คน (001–003) แล้ว`);
+      setMsg(`เพิ่มรายชื่อพนักงานตัวอย่าง ${d.imported} คนแล้ว`);
       router.refresh();
+    } catch {
+      setErr("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
     } finally {
       setBusy(false);
     }
@@ -65,6 +74,8 @@ export default function DriverAdmin({ drivers }) {
       if (!r.ok) { setErr("ลบไม่สำเร็จ"); return; }
       setMsg(`ลบรหัส ${c} แล้ว`);
       router.refresh();
+    } catch {
+      setErr("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
     } finally {
       setBusy(false);
     }
@@ -170,4 +181,4 @@ export default function DriverAdmin({ drivers }) {
       </table>
     </div>
   );
-  }
+}

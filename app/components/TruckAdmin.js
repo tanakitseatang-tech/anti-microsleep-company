@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+// sample employee codes 901–903 so they never overwrite real drivers 001–003
 const SAMPLE_ROWS = [
   {
     code: "1",
@@ -9,9 +10,9 @@ const SAMPLE_ROWS = [
     brand: "Isuzu",
     model: "ELF NMR 130",
     vehicle_info: "รถบรรทุก 6 ล้อตู้ทึบ",
-    driver_code: "EMP001",
+    driver_code: "EMP901",
     driver_name: "สมชาย ใจดี",
-    driver_phone: "081-234-5678",
+    driver_phone: "0XX-XXX-XXXX",
   },
   {
     code: "2",
@@ -19,9 +20,9 @@ const SAMPLE_ROWS = [
     brand: "Hino",
     model: "300 Innovator",
     vehicle_info: "รถบรรทุก 6 ล้อห้องเย็น",
-    driver_code: "EMP002",
+    driver_code: "EMP902",
     driver_name: "วิชัย สายชล",
-    driver_phone: "089-876-5432",
+    driver_phone: "0XX-XXX-XXXX",
   },
   {
     code: "3",
@@ -29,9 +30,9 @@ const SAMPLE_ROWS = [
     brand: "Toyota",
     model: "Hilux Revo",
     vehicle_info: "กระบะตู้ทึบส่งด่วน",
-    driver_code: "EMP003",
+    driver_code: "EMP903",
     driver_name: "กิตติพงศ์ ทองดี",
-    driver_phone: "086-555-4321",
+    driver_phone: "0XX-XXX-XXXX",
   },
 ];
 
@@ -99,10 +100,12 @@ function parseDatasheet(text) {
     if (!cells.some(Boolean)) continue;
     const obj = {};
     for (let c = 0; c < cells.length; c++) {
-      const field = cols[c] || defaultOrder[c];
+      // with a header row, unknown columns are ignored (they used to land in the wrong field)
+      const field = hasHeader ? cols[c] : defaultOrder[c];
       if (field && cells[c]) obj[field] = cells[c];
     }
-    if (!obj.code) obj.code = String(rows.length + 1);
+    // a row without a truck code is skipped (it used to get a made-up code and overwrite truck 1, 2, ...)
+    if (!obj.code) continue;
     rows.push(obj);
   }
   return rows;
@@ -112,7 +115,9 @@ function toCsv(rows) {
   const headers = ["รหัสรถ", "ทะเบียนรถ", "ยี่ห้อรถ", "รุ่นรถ", "ข้อมูลรถ", "รหัสพนักงาน", "ชื่อคนขับ", "เบอร์โทร"];
   const fields = ["code", "name", "brand", "model", "vehicle_info", "driver_code", "driver_name", "driver_phone"];
   const escCsv = (v) => {
-    const s = String(v ?? "");
+    let s = String(v ?? "");
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;   // Excel must not run it as a formula
+
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const body = rows.map((r) => fields.map((f) => escCsv(r[f])).join(","));
@@ -280,11 +285,17 @@ export default function TruckAdmin({ trucks }) {
 
   async function deleteRow(t) {
     if (!window.confirm(`ลบข้อมูลรถคันที่ ${t.code} (${t.driver_name || t.name || "ไม่มีชื่อ"})?`)) return;
-    await fetch("/api/trucks", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: t.id }),
-    });
+    try {
+      const r = await fetch("/api/trucks", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: t.id }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.ok === false) setMsg(j.error || "ลบไม่สำเร็จ");
+    } catch {
+      setMsg("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+    }
     router.refresh();
   }
 
@@ -325,7 +336,18 @@ export default function TruckAdmin({ trucks }) {
             <button type="button" onClick={() => downloadFile("anti-microsleep-datasheet.csv", toCsv(trucks))}>
               📤 ส่งออกข้อมูลทั้งหมด (.csv)
             </button>
-            <button type="button" onClick={() => importRows(SAMPLE_ROWS)} disabled={busy}>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                // never overwrite a real truck (e.g. truck 1) with sample data
+                const have = new Set(trucks.map((t) => String(t.code)));
+                const rows = SAMPLE_ROWS.filter((r) => !have.has(r.code));
+                if (!rows.length) { setMsg("มีรถรหัส 1–3 อยู่แล้ว ไม่ใส่ตัวอย่างทับข้อมูลจริง"); return; }
+                if (!window.confirm(`เพิ่มรถตัวอย่าง ${rows.length} คัน (รหัส ${rows.map((r) => r.code).join(", ")})?`)) return;
+                importRows(rows);
+              }}
+            >
               ✨ ใส่ข้อมูลตัวอย่าง 3 คันทันที
             </button>
           </div>

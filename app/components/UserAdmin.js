@@ -41,23 +41,26 @@ export default function UserAdmin({ users, currentUserId }) {
     setBusy(false);
   }
 
-  async function unlockUser(u) {
-    await fetch("/api/users", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "unlock", id: u.id }),
-    });
+  // send a request; show the server's error (e.g. "ต้องมี admin อย่างน้อย 1 คน") instead of failing silently
+  async function call(method, body) {
+    try {
+      const r = await fetch("/api/users", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) setMsg(`⚠️ ${j.error || "ทำไม่สำเร็จ"}`);
+    } catch {
+      setMsg("⚠️ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+    }
     router.refresh();
+  }
+
+  async function unlockUser(u) {
+    await call("POST", { action: "unlock", id: u.id });
   }
 
   async function removeUser(u) {
     if (!window.confirm(`ลบบัญชีผู้ใช้ "${u.username}"?`)) return;
-    await fetch("/api/users", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: u.id }),
-    });
-    router.refresh();
+    await call("DELETE", { id: u.id });
+
   }
 
   return (

@@ -10,12 +10,18 @@ export default function GoDriver({ truck, code }) {
   const url = ready ? `http://${truck.local_ip}:7000/driver.html` : null;
 
   useEffect(() => {
-    if (url) {
-      const t = setTimeout(() => { window.location.href = url; }, 700);
-      return () => clearTimeout(t);
-    }
-    const t = setInterval(() => router.refresh(), 5000);
-    return () => clearInterval(t);
+    // keep checking: the board may come online or change its IP while this page is open
+    const poll = setInterval(() => router.refresh(), 5000);
+    if (!url) return () => clearInterval(poll);
+    // auto-open only ONCE per tab: pressing Back must show the help text, not redirect again
+    let done = false;
+    try { done = sessionStorage.getItem("ams_go_" + url) === "1"; } catch {}
+    if (done) return () => clearInterval(poll);
+    const t = setTimeout(() => {
+      try { sessionStorage.setItem("ams_go_" + url, "1"); } catch {}
+      window.location.href = url;
+    }, 1500);
+    return () => { clearTimeout(t); clearInterval(poll); };
   }, [url, router]);
 
   const box = { maxWidth: 440, margin: "48px auto", padding: "0 16px", textAlign: "center", lineHeight: 1.6 };
@@ -30,14 +36,14 @@ export default function GoDriver({ truck, code }) {
       </div>
     );
   }
-  const label = truck.name ? `${truck.code} · ${truck.name}` : truck.code;
+  const label = truck.code;            // public page: no licence plate, no Wi-Fi name
   if (!ready) {
     return (
       <div style={box}>
         <h1 style={{ fontSize: 24 }}>รถ {label}</h1>
         <p><b>ยังติดต่อบอร์ดไม่ได้</b></p>
         <p className="muted">
-          เปิด hotspot บนมือถือ{truck.wifi_ssid ? ` (ชื่อ ${truck.wifi_ssid})` : ""} แล้วรอบอร์ดต่อประมาณ 1 นาที
+          เปิด hotspot บนมือถือ (ชื่อ AMS-01) แล้วรอบอร์ดต่อประมาณ 1 นาที
           · หน้านี้จะเปิดหน้าคนขับให้เองเมื่อบอร์ดพร้อม
         </p>
       </div>
@@ -49,8 +55,8 @@ export default function GoDriver({ truck, code }) {
       <p>กำลังเปิดหน้าคนขับ…</p>
       <a href={url} style={big}>เปิดหน้าคนขับ</a>
       <p className="muted" style={{ fontSize: 14 }}>
-        ถ้าเปิดไม่ขึ้น: มือถือต้องเป็นเครื่องที่ปล่อย hotspot ให้บอร์ด
-        {truck.wifi_ssid ? ` (${truck.wifi_ssid})` : ""} หรือต่อ Wi‑Fi เดียวกัน · ปิด VPN ก่อน
+        ถ้าเปิดไม่ขึ้น: มือถือต้องเป็นเครื่องที่ปล่อย hotspot ให้บอร์ด (AMS-01)
+        หรือต่อ Wi‑Fi เดียวกับบอร์ด · ปิด VPN ก่อน · มือถือที่ใช้เน็ต 4G อย่างเดียวจะเปิดไม่ได้
         <br />ที่อยู่: <code>{url}</code>
       </p>
     </div>

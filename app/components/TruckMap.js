@@ -14,13 +14,13 @@ const escHtml = (s) =>
 // Demo-only client-side fleet simulator: 7 trucks driving on real Thai highways (OSRM).
 // Zero DB writes, zero Vercel/Supabase quota burn, clearly labeled "(จำลอง)" for judges.
 const SIM_FLEET_DEFS = [
-  { code: "SIM-02", name: "70-2002 กทม (จำลอง)", brand: "ISUZU", model: "GXZ 360", vehicle_info: "รถบรรทุก 10 ล้อ · ทล.1 พหลโยธิน", driver_name: "สมศักดิ์ (จำลอง)", driver_code: "902", driver_phone: "080-000-0002", speedKmh: 88, start: [14.0208, 100.6164], end: [16.8839, 99.1258] },
-  { code: "SIM-03", name: "70-3003 กทม (จำลอง)", brand: "HINO", model: "Victor 500", vehicle_info: "รถบรรทุก 10 ล้อ · ทล.4 เพชรเกษม", driver_name: "วิชัย (จำลอง)", driver_code: "903", driver_phone: "080-000-0003", speedKmh: 82, start: [13.1119, 99.9398], end: [11.8124, 99.7973] },
-  { code: "SIM-04", name: "70-4004 กทม (จำลอง)", brand: "ISUZU", model: "FXZ 360", vehicle_info: "รถบรรทุก 10 ล้อ · ทล.2 มิตรภาพ", driver_name: "ประยุทธ์ (จำลอง)", driver_code: "904", driver_phone: "080-000-0004", speedKmh: 85, start: [14.5289, 100.9101], end: [14.9799, 102.0978] },
-  { code: "SIM-05", name: "70-5005 ชบ (จำลอง)", brand: "SCANIA", model: "P360", vehicle_info: "รถหัวลากตู้คอนเทนเนอร์ · มอเตอร์เวย์ 7", driver_name: "สุรชัย (จำลอง)", driver_code: "905", driver_phone: "080-000-0005", speedKmh: 80, start: [13.7278, 100.7478], end: [13.0956, 100.9182] },
-  { code: "SIM-06", name: "70-6006 สฎ (จำลอง)", brand: "HINO", model: "FM1A", vehicle_info: "รถบรรทุก 10 ล้อห้องเย็น · ทล.41", driver_name: "มานพ (จำลอง)", driver_code: "906", driver_phone: "080-000-0006", speedKmh: 78, start: [10.4930, 99.1800], end: [9.1382, 99.3217] },
-  { code: "SIM-07", name: "70-7007 พล (จำลอง)", brand: "ISUZU", model: "FVM 240", vehicle_info: "รถบรรทุก 6 ล้อ · ทล.11", driver_name: "อนุชา (จำลอง)", driver_code: "907", driver_phone: "080-000-0007", speedKmh: 80, start: [16.8211, 100.2659], end: [17.6200, 100.0993] },
-  { code: "SIM-08", name: "70-8008 นม (จำลอง)", brand: "UD", model: "Quester", vehicle_info: "รถบรรทุก 10 ล้อ · ทล.304", driver_name: "เกรียงไกร (จำลอง)", driver_code: "908", driver_phone: "080-000-0008", speedKmh: 72, start: [14.0509, 101.3727], end: [14.7186, 102.0222] },
+  { code: "SIM-02", name: "70-2002 กทม (จำลอง)", brand: "ISUZU", model: "GXZ 360", vehicle_info: "รถบรรทุก 10 ล้อ · ทล.1 พหลโยธิน", driver_name: "สมศักดิ์ (จำลอง)", driver_code: "902", driver_phone: "0XX-XXX-XXXX", speedKmh: 88, start: [14.0208, 100.6164], end: [16.8839, 99.1258] },
+  { code: "SIM-03", name: "70-3003 กทม (จำลอง)", brand: "HINO", model: "Victor 500", vehicle_info: "รถบรรทุก 10 ล้อ · ทล.4 เพชรเกษม", driver_name: "วิชัย (จำลอง)", driver_code: "903", driver_phone: "0XX-XXX-XXXX", speedKmh: 82, start: [13.1119, 99.9398], end: [11.8124, 99.7973] },
+  { code: "SIM-04", name: "70-4004 กทม (จำลอง)", brand: "ISUZU", model: "FXZ 360", vehicle_info: "รถบรรทุก 10 ล้อ · ทล.2 มิตรภาพ", driver_name: "ประยุทธ์ (จำลอง)", driver_code: "904", driver_phone: "0XX-XXX-XXXX", speedKmh: 85, start: [14.5289, 100.9101], end: [14.9799, 102.0978] },
+  { code: "SIM-05", name: "70-5005 ชบ (จำลอง)", brand: "SCANIA", model: "P360", vehicle_info: "รถหัวลากตู้คอนเทนเนอร์ · มอเตอร์เวย์ 7", driver_name: "สุรชัย (จำลอง)", driver_code: "905", driver_phone: "0XX-XXX-XXXX", speedKmh: 80, start: [13.7278, 100.7478], end: [13.0956, 100.9182] },
+  { code: "SIM-06", name: "70-6006 สฎ (จำลอง)", brand: "HINO", model: "FM1A", vehicle_info: "รถบรรทุก 10 ล้อห้องเย็น · ทล.41", driver_name: "มานพ (จำลอง)", driver_code: "906", driver_phone: "0XX-XXX-XXXX", speedKmh: 78, start: [10.4930, 99.1800], end: [9.1382, 99.3217] },
+  { code: "SIM-07", name: "70-7007 พล (จำลอง)", brand: "ISUZU", model: "FVM 240", vehicle_info: "รถบรรทุก 6 ล้อ · ทล.11", driver_name: "อนุชา (จำลอง)", driver_code: "907", driver_phone: "0XX-XXX-XXXX", speedKmh: 80, start: [16.8211, 100.2659], end: [17.6200, 100.0993] },
+  { code: "SIM-08", name: "70-8008 นม (จำลอง)", brand: "UD", model: "Quester", vehicle_info: "รถบรรทุก 10 ล้อ · ทล.304", driver_name: "เกรียงไกร (จำลอง)", driver_code: "908", driver_phone: "0XX-XXX-XXXX", speedKmh: 72, start: [14.0509, 101.3727], end: [14.7186, 102.0222] },
 ];
 
 function haversineM(lat1, lon1, lat2, lon2) {
@@ -58,7 +58,7 @@ let sharedAudioCtx = null;
 function playControlRoomBeep() {
   try {
     const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
+    if (!Ctx) return false;
     if (!sharedAudioCtx || sharedAudioCtx.state === "closed") {
       sharedAudioCtx = new Ctx();
     }
@@ -77,7 +77,10 @@ function playControlRoomBeep() {
     gain.connect(ctx.destination);
     osc.start();
     osc.stop(ctx.currentTime + 0.36);
-  } catch {}
+    return ctx.state === "running";          // false = browser still blocks sound (no click yet)
+  } catch {
+    return false;
+  }
 }
 
 async function copyText(text) {
@@ -435,14 +438,27 @@ export default function TruckMap({ trucks, today = { total: 0, alarms: 0 } }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trucks, simTrucks, simOn, sel]);
 
+  // New red case → beep once (remembered only if the browser really played it).
+  // While a truck is RED right now → keep beeping every 5 s until it is handled.
+  const liveRed = dangerTrucks.some((t) => t.online && t.level === 2);
+  // If the browser still blocks sound (no click on the page yet), keep retrying every 2.5 s.
   useEffect(() => {
-    if (soundOn && dangerKey && dangerKey !== lastBeepKey.current) {
-      lastBeepKey.current = dangerKey;
-      playControlRoomBeep();
-    } else if (!dangerKey) {
-      lastBeepKey.current = "";
-    }
-  }, [soundOn, dangerKey]);
+    if (!dangerKey) { lastBeepKey.current = ""; return; }
+    if (!soundOn) return;
+    let lastAt = 0;
+    const check = () => {
+      const now = Date.now();
+      if (dangerKey !== lastBeepKey.current) {
+        if (playControlRoomBeep()) { lastBeepKey.current = dangerKey; lastAt = now; }
+      } else if (liveRed && now - lastAt >= 5000) {
+        playControlRoomBeep();
+        lastAt = now;
+      }
+    };
+    check();
+    const id = setInterval(check, 2500);
+    return () => clearInterval(id);
+  }, [soundOn, dangerKey, liveRed]);
 
   // the details panel covers the right side of the map on wide screens: keep the map size right
   useEffect(() => {
@@ -458,7 +474,8 @@ export default function TruckMap({ trucks, today = { total: 0, alarms: 0 } }) {
     const pts = [];
     for (const t of list) {
       if (t.lat == null || t.lon == null) continue;
-      const color = t.online ? COLORS[t.level ?? 0] : COLORS.off;
+      // an open RED case keeps the truck red even if the board went offline (that is the scariest case)
+      const color = (t.open_red || 0) > 0 ? COLORS[2] : t.online ? COLORS[t.level ?? 0] : COLORS.off;
       const picked = selRef.current === t.code;
       if (picked) {
         L.circleMarker([t.lat, t.lon], { radius: 20, color: "#2563eb", weight: 3, fill: false, interactive: false }).addTo(layer);
@@ -594,6 +611,8 @@ export default function TruckMap({ trucks, today = { total: 0, alarms: 0 } }) {
                         ? <span className={`pill l${r.level ?? 0}`}>{LEVEL_TXT[r.level ?? 0]}</span>
                         : <span className="pill off">ขาดการติดต่อ</span>}
                     {r.rest && !r.online && <div className="muted" style={{ fontSize: 12 }}>บอร์ดปิดอยู่ (ดับเครื่องพัก)</div>}
+                    {r.sim_drive && r.online && <div style={{ fontSize: 12, color: "var(--accent)" }}>🧪 ขับจำลอง (เดโม)</div>}
+                    {(r.open_red || 0) > 0 && !r.online && <div style={{ fontSize: 12, color: "var(--alarm)" }}>🔴 มีเคสแดงค้าง</div>}
                   </td>
                   <td>{r.speed == null ? "—" : `${Math.round(r.speed)} กม./ชม.`}</td>
                   <td>{r.camera_ok == null ? "—" : r.camera_ok ? "ปกติ" : "⚠️ ไม่มีภาพ"}</td>
