@@ -142,6 +142,30 @@ export default function TruckAdmin({ trucks }) {
   const [busy, setBusy] = useState(false);
   const [sheetText, setSheetText] = useState("");
   const [search, setSearch] = useState("");
+  const [issuedKey, setIssuedKey] = useState(null); // { code, key }
+
+  async function issueKey(t) {
+    if (!confirm(`ออก API Key ใหม่สำหรับรถคันที่ ${t.code}?\n(นำ Key ไปใส่ไฟล์ company_api_key.txt บนบอร์ดแล้วระบบจะล็อกกันปลอมตัวอัตโนมัติ)`)) return;
+    setBusy(true); setMsg(""); setOkMsg("");
+    try {
+      const r = await fetch("/api/trucks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: t.code, issue_key: true }),
+      });
+      const j = await r.json();
+      if (j.ok && j.key) {
+        setIssuedKey({ code: t.code, key: j.key });
+        setOkMsg(`ออก API Key สำหรับรถคันที่ ${t.code} เรียบร้อย (คัดลอกเก็บไว้ตอนนี้เลย)`);
+        router.refresh();
+      } else {
+        setMsg(j.error || "ออก Key ไม่สำเร็จ");
+      }
+    } catch {
+      setMsg("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+    }
+    setBusy(false);
+  }
 
   const previewRows = sheetText.trim() ? parseDatasheet(sheetText) : [];
 
@@ -369,6 +393,27 @@ export default function TruckAdmin({ trucks }) {
       </div>
 
       {/* 3. Full Table of Vehicles & Drivers */}
+      {issuedKey && (
+        <div className="card" style={{ borderColor: "#22c55e", marginBottom: 12 }}>
+          <b style={{ color: "#22c55e" }}>🔑 API Key ใหม่สำหรับรถคันที่ {issuedKey.code} (แสดงครั้งเดียว!)</b>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
+            <code style={{ padding: "6px 10px", background: "var(--bg)", borderRadius: 6, fontSize: 13, wordBreak: "break-all" }}>
+              {issuedKey.key}
+            </code>
+            <button
+              type="button"
+              className="primary"
+              onClick={() => { navigator.clipboard?.writeText(issuedKey.key); setOkMsg("คัดลอก API Key แล้ว"); }}
+            >
+              📋 คัดลอก Key
+            </button>
+            <button type="button" onClick={() => setIssuedKey(null)}>ปิด</button>
+          </div>
+          <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+            นำไปวางในไฟล์ <code>~/ArduinoApps/anti-microsleep/company_api_key.txt</code> บนบอร์ด — เมื่อบอร์ดเชื่อมต่อครั้งถัดไป เว็บจะล็อกรถคันนี้ไม่ให้คนอื่นปลอมตัวด้วย X-Truck-Code เปล่า ๆ อัตโนมัติ
+          </div>
+        </div>
+      )}
       <div className="card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
           <b>📋 รายชื่อรถและพนักงานขับรถทั้งหมด ({filtered.length} คัน)</b>
@@ -403,9 +448,13 @@ export default function TruckAdmin({ trucks }) {
                 <td>{t.driver_code || "—"}</td>
                 <td><b>{t.driver_name || "—"}</b></td>
                 <td>{t.driver_phone ? <a href={`tel:${t.driver_phone}`}>{t.driver_phone}</a> : "—"}</td>
-                <td>{t.online ? <span className="pill l0">ออนไลน์</span> : <span className="muted">{t.seen}</span>}</td>
-                <td style={{ display: "flex", gap: 6 }}>
+                <td>
+                  {t.online ? <span className="pill l0">ออนไลน์</span> : <span className="muted">{t.seen}</span>}
+                  {t.key_required && <div style={{ fontSize: 11, color: "#4ade80", marginTop: 2 }}>🔒 ล็อก Key แล้ว</div>}
+                </td>
+                <td style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   <button type="button" onClick={() => editRow(t)}>✏️ แก้ไข</button>
+                  <button type="button" disabled={busy} onClick={() => issueKey(t)}>🔑 ออก Key</button>
                   <button type="button" onClick={() => deleteRow(t)}>🗑️ ลบ</button>
                 </td>
               </tr>
