@@ -4,8 +4,30 @@ import { sql, ensureTruckColumns } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { thTime, thReason, thReasons } from "@/lib/format";
 import ReportMap from "../components/ReportMap";
+import ReportsExport from "../components/ReportsExport";
 
 export const dynamic = "force-dynamic";
+
+// Map/charts use at most this many newest events; the scorecard uses a full aggregate query.
+const EVENT_CAP = 400;
+
+// Safety score: deduct 12 pts per red alarm, 3 pts per yellow warning (min 0, max 100).
+function safetyScore(t) {
+  return Math.max(0, 100 - t.alarm_count * 12 - t.warn_count * 3);
+}
+
+// One chart bar per cause: drop the numbers so "หาว 3 ครั้งใน 5 นาที" and "หาว 4 ครั้งใน 5 นาที"
+// (or "หลับใน 1.2 วินาที" / "หลับใน 2.5 วินาที") count as the same cause. Uses thReason() output.
+function causeKey(th) {
+  const k = String(th || "")
+    .replace(/\s*\([^)]*\)/g, "") // "(PERCLOS 45%)", "(80% ใน 2 วิ)", "(กล้องมืด/ถูกบัง)"
+    // "ใน 5 นาที" (time window). Minutes/hours only, so "หลับใน 1.2 วินาที" keeps its "ใน".
+    .replace(/\s*ใน\s*\d[\d.,]*\s*(?:นาที|ชั่วโมง|ชม\.?)/g, "")
+    .replace(/\d[\d.,]*\s*(?:วินาที|วิ\.?|ครั้ง|นาที|ชั่วโมง|ชม\.?|%|sec\b|s\b|min\b)?/gi, "") // "3 ครั้ง", "1.2 วินาที", "45%", "3s"
+    .replace(/\s+/g, " ")
+    .trim();
+  return k || String(th || "").trim() || "อื่น ๆ";
+}
 
 export default async function ReportsPage() {
   const user = await currentUser();
@@ -26,14 +48,17 @@ export default async function ReportsPage() {
     GROUP BY t.id
     ORDER BY alarm_count DESC, warn_count DESC, t.code ASC`;
 
-  const events = await sql`
+  // Fetch one extra row only to detect whether the cap was hit.
+  const eventRows = await sql`
     SELECT e.id, e.level, e.reasons, e.happened_at, e.lat, e.lon, e.close_note,
            t.code AS truck, t.driver_name, t.driver_code
     FROM events e
     JOIN trucks t ON t.id = e.truck_id
     WHERE NOT e.archived AND t.key_revoked = false
     ORDER BY e.happened_at DESC
-    LIMIT 400`;
+    LIMIT ${EVENT_CAP + 1}`;
+  const eventsCapped = eventRows.length > EVENT_CAP;
+  const events = Array.from(eventRows).slice(0, EVENT_CAP);
 
   // 24-hour distribution in Asia/Bangkok time
   const hours = Array(24).fill(0);
@@ -53,7 +78,7 @@ export default async function ReportsPage() {
     }
     for (const r of e.reasons || []) {
       // Group by generic Thai reason category
-      const th = thReason(r).replace(/\s+[\d.]+\s*วินาที/, "").replace(/\s*\([^)]*\)/, "");
+      const th = causeKey(thReason(r));
       causeCounts[th] = (causeCounts[th] || 0) + 1;
     }
     const m = String(e.close_note || "").match(/ตอบสนองใน\s*(\d+)\s*วิ/);
@@ -86,9 +111,34 @@ export default async function ReportsPage() {
   const totalAlarms = trucks.reduce((s, t) => s + t.alarm_count, 0);
   const totalWarns = trucks.reduce((s, t) => s + t.warn_count, 0);
 
+  // Plain rows for the CSV export (same score as the table below).
+  const scoreRows = trucks.map((t) => ({
+    code: t.code ?? "",
+    plate: t.name ?? "",
+    brand_model: [t.brand, t.model].filter(Boolean).join(" "),
+    driver_name: t.driver_name ?? "",
+    driver_code: t.driver_code ?? "",
+    driver_phone: t.driver_phone ?? "",
+    score: safetyScore(t),
+    warn_count: t.warn_count,
+    alarm_count: t.alarm_count,
+    closed_count: t.closed_count,
+    open_count: t.open_count,
+  }));
+
   return (
     <>
       <h1>📊 รายงานวิเคราะห์ความปลอดภัย & Heatmap จุดเสี่ยง</h1>
+
+      <div style={{ marginBottom: 12 }}>
+        <ReportsExport rows={scoreRows} />
+      </div>
+
+      {eventsCapped && (
+        <div className="muted" style={{ fontSize: 13, marginBottom: 10 }}>
+          ℹ️ แผนที่ กราฟ และเวลากดตื่นเฉลี่ย ใช้ {EVENT_CAP} เหตุการณ์ล่าสุด · จำนวนเหตุการณ์ (เหลือง/แดง) และตารางคะแนนความปลอดภัยนับจากเหตุการณ์ทั้งหมดครบถ้วน
+        </div>
+      )}
 
       <div className="tiles">
         <div className="tile">
@@ -182,8 +232,7 @@ export default async function ReportsPage() {
           </thead>
           <tbody>
             {trucks.map((t) => {
-              // Deduct 12 pts per red alarm, 3 pts per yellow warning (min 0, max 100)
-              const score = Math.max(0, 100 - t.alarm_count * 12 - t.warn_count * 3);
+              const score = safetyScore(t);
               const scoreLevel = score >= 80 ? "l0" : score >= 55 ? "l1" : "l2";
               return (
                 <tr key={t.id}>
