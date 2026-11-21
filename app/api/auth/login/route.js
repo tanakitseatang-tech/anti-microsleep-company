@@ -36,7 +36,7 @@ async function login(request) {
     return fail("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง");
   }
   if (user.locked_until && new Date(user.locked_until) > new Date()) {
-    return fail(`บัญชีถูกล็อกชั่วคราว ลองใหม่หลัง ${new Date(user.locked_until).toLocaleTimeString("th-TH")}`, 423);
+    return fail(`บัญชีถูกล็อกชั่วคราว ลองใหม่หลัง ${new Date(user.locked_until).toLocaleTimeString("th-TH", { timeZone: "Asia/Bangkok" })} น.`, 423);
   }
   if (!(await bcrypt.compare(password, user.password_hash))) {
     const fails = user.failed_attempts + 1;
