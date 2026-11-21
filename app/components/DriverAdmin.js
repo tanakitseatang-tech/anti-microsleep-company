@@ -16,6 +16,18 @@ export default function DriverAdmin({ drivers }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
+  const [editing, setEditing] = useState(false); // editing an existing driver: the code is locked
+
+  function startEdit(d) {
+    setEditing(true);
+    setCode(d.code); setName(d.name || ""); setPhone(d.phone || "");
+    setErr(""); setMsg("");
+  }
+
+  function cancelEdit() {
+    setEditing(false);
+    setCode(""); setName(""); setPhone("");
+  }
 
   async function save(e) {
     e.preventDefault();
@@ -28,7 +40,7 @@ export default function DriverAdmin({ drivers }) {
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) { setErr(d.error || "บันทึกไม่สำเร็จ"); return; }
-      setCode(""); setName(""); setPhone("");
+      setCode(""); setName(""); setPhone(""); setEditing(false);
       setMsg(`บันทึกรหัส ${d.driver?.code} (${d.driver?.name}) เรียบร้อยแล้ว`);
       router.refresh();
     } catch {
@@ -72,6 +84,7 @@ export default function DriverAdmin({ drivers }) {
         body: JSON.stringify({ code: c }),
       });
       if (!r.ok) { setErr("ลบไม่สำเร็จ"); return; }
+      if (editing && code === c) cancelEdit(); // the form must not re-create the deleted driver
       setMsg(`ลบรหัส ${c} แล้ว`);
       router.refresh();
     } catch {
@@ -104,7 +117,9 @@ export default function DriverAdmin({ drivers }) {
             placeholder="001"
             maxLength={10}
             required
-            style={{ width: 96 }}
+            readOnly={editing}
+            title={editing ? "แก้รหัสไม่ได้ระหว่างแก้ไข (กันเขียนทับพนักงานคนอื่น)" : undefined}
+            style={editing ? { width: 96, opacity: 0.6 } : { width: 96 }}
           />
         </div>
         <div style={{ flex: "1 1 200px" }}>
@@ -127,8 +142,13 @@ export default function DriverAdmin({ drivers }) {
           />
         </div>
         <button type="submit" className="btn primary" disabled={busy}>
-          + บันทึกพนักงาน
+          {editing ? `💾 บันทึกการแก้ไข (รหัส ${code})` : "+ บันทึกพนักงาน"}
         </button>
+        {editing && (
+          <button type="button" className="btn" disabled={busy} onClick={cancelEdit}>
+            ยกเลิก
+          </button>
+        )}
       </form>
 
       {msg && <div style={{ color: "#15803d", fontSize: 13, marginBottom: 8 }}>✅ {msg}</div>}
@@ -154,9 +174,9 @@ export default function DriverAdmin({ drivers }) {
                   type="button"
                   className="btn"
                   style={{ padding: "4px 8px", fontSize: 12 }}
-                  onClick={() => { setCode(d.code); setName(d.name); setPhone(d.phone || ""); }}
+                  onClick={() => startEdit(d)}
                 >
-                  แก้ไข
+                  ✏️ แก้ไข
                 </button>
                 <button
                   type="button"
