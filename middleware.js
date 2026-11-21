@@ -5,8 +5,10 @@ import { SESSION_COOKIE, readSessionToken } from "./lib/session";
 
 // /setup and /api/setup only work while the database has no users (see app/api/setup).
 // /go and /go/<truck>: drivers' QR codes → their board's driver page (no login, no company data shown).
+// /api/auth/logout only clears the session cookie, so it must work even after the session
+// expired (otherwise pressing "ออกจากระบบ" then shows a false 401 error).
 // exact pages, plus whole folders ("/go/1", "/api/ingest/heartbeat"). "/loginx" is NOT public.
-const PUBLIC_EXACT = ["/login", "/setup", "/api/auth/login", "/api/setup", "/api/health", "/credits", "/go"];
+const PUBLIC_EXACT = ["/login", "/setup", "/api/auth/login", "/api/auth/logout", "/api/setup", "/api/health", "/credits", "/go"];
 const PUBLIC_FOLDERS = ["/go/", "/api/ingest/", "/api/cron/"];
 
 export async function middleware(request) {
