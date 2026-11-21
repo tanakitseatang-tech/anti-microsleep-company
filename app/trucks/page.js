@@ -29,7 +29,7 @@ export default async function Trucks() {
     driver_code: t.driver_code || "",
     driver_name: t.driver_name || "",
     driver_phone: t.driver_phone || "",
-    revoked: t.key_revoked,
+    revoked: Boolean(t.key_revoked),
     key_required: Boolean(t.key_required),
     online: isOnline(t.last_seen),
     seen: thTime(t.last_seen),
@@ -58,7 +58,7 @@ export default async function Trucks() {
     <>
       <h1>จัดการข้อมูลรถและพนักงานขับรถ (Datasheet)</h1>
       <DriverAdmin drivers={driverRows} />
-      <TruckAdmin trucks={rows} />
+      <TruckAdmin trucks={rows} role={user.role} />
       {user.role === "admin" && <UserAdmin users={users} currentUserId={user.id} />}
     </>
   );
