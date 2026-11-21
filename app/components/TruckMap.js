@@ -4,11 +4,18 @@ import { useEffect, useRef, useState } from "react";
 const COLORS = { 0: "#1f9d55", 1: "#c98a00", 2: "#d32f2f", off: "#8a919c" };
 const LEVEL_TXT = ["ปกติ", "เตือน (ง่วง)", "อันตราย (หลับใน)"];
 
+let sharedAudioCtx = null;
 function playControlRoomBeep() {
   try {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return;
-    const ctx = new Ctx();
+    if (!sharedAudioCtx || sharedAudioCtx.state === "closed") {
+      sharedAudioCtx = new Ctx();
+    }
+    if (sharedAudioCtx.state === "suspended") {
+      sharedAudioCtx.resume().catch(() => {});
+    }
+    const ctx = sharedAudioCtx;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sine";
@@ -205,7 +212,37 @@ export default function TruckMap({ trucks }) {
   const selRef = useRef(null);
   selRef.current = sel;
 
-  const dangerTrucks = trucks.filter((t) => (t.online && t.level === 2) || t.open > 0);
+  // Remember the control-room sound switch in this browser (a reload no longer turns it off).
+  // Browsers only allow sound after the first click/key on the page, so wake the audio then.
+  useEffect(() => {
+    let saved = false;
+    try { saved = localStorage.getItem("ams_sound_on") === "1"; } catch {}
+    if (!saved) return;
+    setSoundOn(true);
+    const wake = () => {
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (Ctx && (!sharedAudioCtx || sharedAudioCtx.state === "closed")) sharedAudioCtx = new Ctx();
+        if (sharedAudioCtx && sharedAudioCtx.state === "suspended") sharedAudioCtx.resume().catch(() => {});
+      } catch {}
+    };
+    window.addEventListener("pointerdown", wake, { once: true });
+    window.addEventListener("keydown", wake, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", wake);
+      window.removeEventListener("keydown", wake);
+    };
+  }, []);
+  function toggleSound() {
+    const next = !soundOn;
+    setSoundOn(next);
+    try { localStorage.setItem("ams_sound_on", next ? "1" : "0"); } catch {}
+    if (next) playControlRoomBeep();
+  }
+
+  // Red banner + beep only for real danger: a truck in RED right now, or an open RED (level 2)
+  // case. Yellow warnings (yawn, face not visible, ...) stay quiet in the table and /alerts.
+  const dangerTrucks = trucks.filter((t) => (t.online && t.level === 2) || (t.open_red || 0) > 0);
   const selTruck = sel != null ? trucks.find((t) => t.code === sel) : null;
 
   useEffect(() => {
@@ -238,12 +275,24 @@ export default function TruckMap({ trucks }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const dangerKey = dangerTrucks
+    .map((t) => `${t.code}:${t.level}:${t.open_red}:${t.last_event?.id ?? ""}`)
+    .join("|");
+  const lastBeepKey = useRef("");
+
   useEffect(() => {
     draw(trucks);
-    if (soundOn && dangerTrucks.length > 0) {
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trucks, sel]);
+
+  useEffect(() => {
+    if (soundOn && dangerKey && dangerKey !== lastBeepKey.current) {
+      lastBeepKey.current = dangerKey;
       playControlRoomBeep();
+    } else if (!dangerKey) {
+      lastBeepKey.current = "";
     }
-  });
+  }, [soundOn, dangerKey]);
 
   // the details panel covers the right side of the map on wide screens: keep the map size right
   useEffect(() => {
@@ -295,7 +344,7 @@ export default function TruckMap({ trucks }) {
         >
           <div>
             <b style={{ color: "var(--alarm)" }}>
-              🚨 แจ้งเตือนศูนย์ควบคุม: มีรถที่มีเคสค้างหรืออยู่ในสถานะอันตราย ({dangerTrucks.map((t) => `คันที่ ${t.code} ${t.driver_name || ""}`).join(", ")})
+              🚨 แจ้งเตือนศูนย์ควบคุม: มีรถที่หลับใน / มีเคสอันตราย (แดง) ค้างอยู่ ({dangerTrucks.map((t) => `คันที่ ${t.code} ${t.driver_name || ""}`).join(", ")})
             </b>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -305,7 +354,7 @@ export default function TruckMap({ trucks }) {
               </button>
             )}
             <a className="btn" href="/alerts">ดูเคสแจ้งเตือน</a>
-            <button type="button" onClick={() => { setSoundOn(!soundOn); if (!soundOn) playControlRoomBeep(); }}>
+            <button type="button" onClick={toggleSound}>
               {soundOn ? "🔊 เสียงเตือนศูนย์ควบคุม: เปิด" : "🔇 เปิดเสียงเตือนศูนย์ควบคุม"}
             </button>
           </div>
@@ -314,7 +363,7 @@ export default function TruckMap({ trucks }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, fontSize: 13, gap: 8, flexWrap: "wrap" }} className="muted">
         <span>💡 คลิกที่ไอคอนรถบนแผนที่ (หรือปุ่ม 🎯 ในตาราง) เพื่อดูรายละเอียดและคัดลอกตำแหน่งส่งความช่วยเหลือ</span>
         {dangerTrucks.length === 0 && (
-          <button type="button" onClick={() => { setSoundOn(!soundOn); if (!soundOn) playControlRoomBeep(); }} style={{ padding: "3px 10px", fontSize: 12 }}>
+          <button type="button" onClick={toggleSound} style={{ padding: "3px 10px", fontSize: 12 }}>
             {soundOn ? "🔊 เสียงเตือนศูนย์ควบคุม: เปิด" : "🔇 เปิดเสียงเตือนศูนย์ควบคุม"}
           </button>
         )}
