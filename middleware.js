@@ -5,7 +5,7 @@ import { SESSION_COOKIE, readSessionToken } from "./lib/session";
 
 // /setup and /api/setup only work while the database has no users (see app/api/setup).
 // /go and /go/<truck>: drivers' QR codes → their board's driver page (no login, no company data shown).
-const PUBLIC = ["/login", "/setup", "/api/auth/login", "/api/setup", "/api/health", "/api/ingest/", "/api/cron/", "/go"];
+const PUBLIC = ["/login", "/setup", "/api/auth/login", "/api/setup", "/api/health", "/api/ingest/", "/api/cron/", "/go", "/credits"];
 
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
