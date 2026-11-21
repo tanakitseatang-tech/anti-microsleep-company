@@ -111,16 +111,37 @@ function parseDatasheet(text) {
   return rows;
 }
 
+// One CSV cell. Excel must never run a cell as a formula: look at the first NON-space character
+// (" =cmd", "\n=cmd" are formulas too) and put an apostrophe in front of = + - @ (and a leading
+// tab/CR). Plain negative numbers such as -12.5 stay numbers. Comma, quote, CR, LF -> quoted.
+// (Same rule as AlertsExport.js.)
+function csvCell(v) {
+  if (v === null || v === undefined) return "";
+  let s = String(v);
+  if (typeof v !== "number") {
+    const lead = s.replace(/^[\s ​﻿]+/, "");
+    const plainNegative = /^-\d+(\.\d+)?$/.test(s.trim());
+    if (/^[\t\r]/.test(s) || (/^[=+\-@]/.test(lead) && !plainNegative)) s = "'" + s;
+  }
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+// Phone as text: Excel turns 0812345678 into the number 812345678 (leading 0 lost). Writing it
+// with dashes (081-234-5678) keeps it as text without any formula trick, still dials fine and
+// re-imports unchanged. Other formats are left as typed.
+function phoneText(v) {
+  const s = String(v ?? "").trim();
+  if (/^0\d{9}$/.test(s)) return `${s.slice(0, 3)}-${s.slice(3, 6)}-${s.slice(6)}`; // mobile 08x-xxx-xxxx
+  if (/^0\d{8}$/.test(s)) return `${s.slice(0, 2)}-${s.slice(2, 5)}-${s.slice(5)}`; // landline 02-xxx-xxxx
+  return s;
+}
+
 function toCsv(rows) {
   const headers = ["รหัสรถ", "ทะเบียนรถ", "ยี่ห้อรถ", "รุ่นรถ", "ข้อมูลรถ", "รหัสพนักงาน", "ชื่อคนขับ", "เบอร์โทร"];
   const fields = ["code", "name", "brand", "model", "vehicle_info", "driver_code", "driver_name", "driver_phone"];
-  const escCsv = (v) => {
-    let s = String(v ?? "");
-    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;   // Excel must not run it as a formula
-
-    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const body = rows.map((r) => fields.map((f) => escCsv(r[f])).join(","));
+  const body = rows.map((r) =>
+    fields.map((f) => csvCell(f === "driver_phone" ? phoneText(r[f]) : r[f])).join(",")
+  );
   return "\uFEFF" + [headers.join(","), ...body].join("\r\n");
 }
 
@@ -139,7 +160,8 @@ const EMPTY_FORM = {
   driver_code: "", driver_name: "", driver_phone: "",
 };
 
-export default function TruckAdmin({ trucks }) {
+export default function TruckAdmin({ trucks, role }) {
+  const isAdmin = role === "admin";
   const router = useRouter();
   const [form, setForm] = useState(EMPTY_FORM);
   const [msg, setMsg] = useState("");
@@ -196,6 +218,28 @@ export default function TruckAdmin({ trucks }) {
       setMsg("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
     }
     setBusy(false);
+  }
+
+  // S5: revoke = this truck's board can no longer send anything (stolen/lost board).
+  // Admin only. Undo only by an explicit "ออก Key ใหม่" (issue_key), never by editing the row.
+  async function revokeTruck(t) {
+    if (!confirm(`เพิกถอนรถคันที่ ${t.code}?\n\nบอร์ดของคันนี้จะส่งข้อมูลเข้าเว็บไม่ได้อีก (ทั้ง Key และรหัสรถ) และรถจะหายจากหน้าแผนที่/รายงาน\nใช้เมื่อบอร์ดหายหรือถูกขโมย — ยกเลิกได้ภายหลังด้วยปุ่ม "ออก Key ใหม่"`)) return;
+    setBusy(true); setMsg(""); setOkMsg("");
+    try {
+      const r = await fetch(`/api/trucks/${encodeURIComponent(t.id)}/revoke`, { method: "POST" });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.ok) {
+        if (issuedKey?.code === t.code) setIssuedKey(null);
+        setOkMsg(`เพิกถอนรถคันที่ ${t.code} แล้ว`);
+        router.refresh();
+      } else {
+        setMsg(r.status === 403 ? "เฉพาะผู้ดูแลระบบ (admin) เท่านั้นที่เพิกถอนได้" : j.error || "เพิกถอนไม่สำเร็จ");
+      }
+    } catch {
+      setMsg("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+    } finally {
+      setBusy(false);
+    }
   }
 
   const previewRows = sheetText.trim() ? parseDatasheet(sheetText) : [];
@@ -502,14 +546,26 @@ export default function TruckAdmin({ trucks }) {
                 <td>{t.driver_phone ? <a href={`tel:${t.driver_phone}`}>{t.driver_phone}</a> : "—"}</td>
                 <td>
                   {t.online ? <span className="pill l0">ออนไลน์</span> : <span className="muted">{t.seen}</span>}
-                  {t.key_required && <div style={{ fontSize: 11, color: "#4ade80", marginTop: 2 }}>🔒 ล็อก Key แล้ว</div>}
+                  {t.revoked ? (
+                    <div><span className="pill l2" style={{ fontSize: 11 }}>⛔ เพิกถอนแล้ว</span></div>
+                  ) : (
+                    t.key_required && <div style={{ fontSize: 11, color: "#4ade80", marginTop: 2 }}>🔒 ล็อก Key แล้ว</div>
+                  )}
                 </td>
                 <td style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   <button type="button" onClick={() => editRow(t)}>✏️ แก้ไข</button>
-                  {t.key_required ? (
+                  {t.revoked ? (
+                    // only an admin may bring a revoked truck back, and only with a brand-new key
+                    isAdmin && (
+                      <button type="button" disabled={busy} onClick={() => issueKey(t)}>🔑 ออก Key ใหม่ (ยกเลิกเพิกถอน)</button>
+                    )
+                  ) : t.key_required ? (
                     <button type="button" disabled={busy} onClick={() => removeKey(t)}>🔓 ปลดล็อก Key</button>
                   ) : (
                     <button type="button" disabled={busy} onClick={() => issueKey(t)}>🔑 ออก Key</button>
+                  )}
+                  {isAdmin && !t.revoked && (
+                    <button type="button" disabled={busy} onClick={() => revokeTruck(t)}>⛔ เพิกถอน</button>
                   )}
                   <button type="button" onClick={() => deleteRow(t)}>🗑️ ลบ</button>
                 </td>

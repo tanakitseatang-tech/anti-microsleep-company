@@ -55,17 +55,32 @@ async function fetchSimRoad(start, end) {
 }
 
 let sharedAudioCtx = null;
-function playControlRoomBeep() {
+// Create the shared AudioContext if needed and ask the browser to un-suspend it.
+// Returns the resume promise (resolves once the browser allows sound, e.g. after a click).
+function wakeAudio() {
   try {
     const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return false;
+    if (!Ctx) return Promise.resolve(false);
     if (!sharedAudioCtx || sharedAudioCtx.state === "closed") {
       sharedAudioCtx = new Ctx();
     }
     if (sharedAudioCtx.state === "suspended") {
-      sharedAudioCtx.resume().catch(() => {});
+      return sharedAudioCtx.resume().then(() => sharedAudioCtx.state === "running", () => false);
     }
+    return Promise.resolve(sharedAudioCtx.state === "running");
+  } catch {
+    return Promise.resolve(false);
+  }
+}
+
+// Plays one short chime. Returns true only if it really played.
+// While the browser still blocks sound (no click yet) it creates NO oscillator, so retries
+// do not queue up beeps that would all blast at once on the first click.
+function playControlRoomBeep() {
+  try {
+    wakeAudio();
     const ctx = sharedAudioCtx;
+    if (!ctx || ctx.state !== "running") return false;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sine";
@@ -77,7 +92,7 @@ function playControlRoomBeep() {
     gain.connect(ctx.destination);
     osc.start();
     osc.stop(ctx.currentTime + 0.36);
-    return ctx.state === "running";          // false = browser still blocks sound (no click yet)
+    return true;
   } catch {
     return false;
   }
@@ -257,8 +272,11 @@ function TruckDetail({ t, onClose }) {
 
 // C2: every truck's last known position + click an icon for full details (copy location to send help)
 // + control-room red alert banner & sound chime.
-export default function TruckMap({ trucks, today = { total: 0, alarms: 0 } }) {
+export default function TruckMap({ trucks, today = { total: 0, alarms: 0 }, canManage = false }) {
   const box = useRef(null);
+  const lastBeepKey = useRef("");     // danger set we already beeped for
+  const lastBeepAt = useRef(0);       // time of the last beep that really played
+  const dangerKeyRef = useRef("");
   const st = useRef({ L: null, map: null, layer: null, markers: {}, fitted: false });
   const [soundOn, setSoundOn] = useState(false);
   const [simOn, setSimOn] = useState(false);
@@ -370,13 +388,7 @@ export default function TruckMap({ trucks, today = { total: 0, alarms: 0 } }) {
     try { saved = localStorage.getItem("ams_sound_on") === "1"; } catch {}
     if (!saved) return;
     setSoundOn(true);
-    const wake = () => {
-      try {
-        const Ctx = window.AudioContext || window.webkitAudioContext;
-        if (Ctx && (!sharedAudioCtx || sharedAudioCtx.state === "closed")) sharedAudioCtx = new Ctx();
-        if (sharedAudioCtx && sharedAudioCtx.state === "suspended") sharedAudioCtx.resume().catch(() => {});
-      } catch {}
-    };
+    const wake = () => { wakeAudio(); };
     window.addEventListener("pointerdown", wake, { once: true });
     window.addEventListener("keydown", wake, { once: true });
     return () => {
@@ -388,7 +400,16 @@ export default function TruckMap({ trucks, today = { total: 0, alarms: 0 } }) {
     const next = !soundOn;
     setSoundOn(next);
     try { localStorage.setItem("ams_sound_on", next ? "1" : "0"); } catch {}
-    if (next) playControlRoomBeep();
+    if (!next) return;
+    // The click allows sound: wait for the audio to wake, then play ONE confirmation beep.
+    // If the alarm effect below already beeped for a danger truck just now, skip it (no double beep).
+    wakeAudio().then((ok) => {
+      if (!ok || Date.now() - lastBeepAt.current < 1500) return;
+      if (playControlRoomBeep()) {
+        lastBeepAt.current = Date.now();
+        if (dangerKeyRef.current) lastBeepKey.current = dangerKeyRef.current; // counts as the "new red case" beep
+      }
+    });
   }
 
   // Red banner + beep only for real danger: a truck in RED right now, or an open RED (level 2)
@@ -397,6 +418,14 @@ export default function TruckMap({ trucks, today = { total: 0, alarms: 0 } }) {
   const onlineCount = allTrucks.filter((t) => t.online).length;
   const dangerTrucks = trucks.filter((t) => (t.online && t.level === 2) || (t.open_red || 0) > 0);
   const selTruck = sel != null ? allTrucks.find((t) => t.code === sel) : null;
+  // Table order: red trucks first (RED right now, then open red case), then real trucks before
+  // simulated ones, then by code (numeric-aware, so "2" comes before "10").
+  const dangerRank = (t) => (t.online && t.level === 2 ? 0 : (t.open_red || 0) > 0 ? 1 : 2);
+  const tableTrucks = allTrucks.slice().sort((a, b) =>
+    dangerRank(a) - dangerRank(b) ||
+    (a.is_sim ? 1 : 0) - (b.is_sim ? 1 : 0) ||
+    String(a.code).localeCompare(String(b.code), undefined, { numeric: true })
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -431,7 +460,7 @@ export default function TruckMap({ trucks, today = { total: 0, alarms: 0 } }) {
   const dangerKey = dangerTrucks
     .map((t) => `${t.code}:${t.level}:${t.open_red}:${t.last_event?.id ?? ""}`)
     .join("|");
-  const lastBeepKey = useRef("");
+  dangerKeyRef.current = dangerKey;
 
   useEffect(() => {
     draw(allTrucks);
@@ -445,14 +474,12 @@ export default function TruckMap({ trucks, today = { total: 0, alarms: 0 } }) {
   useEffect(() => {
     if (!dangerKey) { lastBeepKey.current = ""; return; }
     if (!soundOn) return;
-    let lastAt = 0;
     const check = () => {
       const now = Date.now();
       if (dangerKey !== lastBeepKey.current) {
-        if (playControlRoomBeep()) { lastBeepKey.current = dangerKey; lastAt = now; }
-      } else if (liveRed && now - lastAt >= 5000) {
-        playControlRoomBeep();
-        lastAt = now;
+        if (playControlRoomBeep()) { lastBeepKey.current = dangerKey; lastBeepAt.current = now; }
+      } else if (liveRed && now - lastBeepAt.current >= 5000) {
+        if (playControlRoomBeep()) lastBeepAt.current = now;
       }
     };
     check();
@@ -472,6 +499,7 @@ export default function TruckMap({ trucks, today = { total: 0, alarms: 0 } }) {
     layer.clearLayers();
     st.current.markers = {};
     const pts = [];
+    const redMarkers = [];
     for (const t of list) {
       if (t.lat == null || t.lon == null) continue;
       // an open RED case keeps the truck red even if the board went offline (that is the scariest case)
@@ -491,8 +519,11 @@ export default function TruckMap({ trucks, today = { total: 0, alarms: 0 } }) {
         .on("click", () => setSel(t.code))
         .addTo(layer);
       st.current.markers[t.code] = marker;
+      if (color === COLORS[2]) redMarkers.push(marker);
       pts.push([t.lat, t.lon]);
     }
+    // red trucks drawn on top of nearby green/grey ones so they are always visible & clickable
+    for (const m of redMarkers) m.bringToFront();
     if (pts.length && !st.current.fitted) {
       map.fitBounds(pts, { padding: [40, 40], maxZoom: 13 });
       st.current.fitted = true;
@@ -577,7 +608,7 @@ export default function TruckMap({ trucks, today = { total: 0, alarms: 0 } }) {
             </tr>
           </thead>
           <tbody>
-            {allTrucks.map((r) => {
+            {tableTrucks.map((r) => {
               const carTitle = [r.brand, r.model].filter(Boolean).join(" ");
               return (
                 <tr key={r.code}>
@@ -601,7 +632,9 @@ export default function TruckMap({ trucks, today = { total: 0, alarms: 0 } }) {
                         )}
                       </>
                     ) : (
-                      <span className="muted">ยังไม่ระบุ (<Link href="/trucks">เพิ่มข้อมูล</Link>)</span>
+                      canManage
+                        ? <span className="muted">ยังไม่ระบุ (<Link href="/trucks">เพิ่มข้อมูล</Link>)</span>
+                        : <span className="muted">ยังไม่ระบุ</span>
                     )}
                   </td>
                   <td>
@@ -632,7 +665,13 @@ export default function TruckMap({ trucks, today = { total: 0, alarms: 0 } }) {
               );
             })}
             {!allTrucks.length && (
-              <tr><td colSpan={9} className="muted">ยังไม่มีรถ — เพิ่มหรือนำเข้า Datasheet ที่หน้า <Link href="/trucks">จัดการรถ</Link></td></tr>
+              <tr>
+                <td colSpan={9} className="muted">
+                  {canManage
+                    ? <>ยังไม่มีรถ — เพิ่มหรือนำเข้า Datasheet ที่หน้า <Link href="/trucks">จัดการรถ</Link></>
+                    : "ยังไม่มีรถ — ติดต่อผู้ดูแลระบบเพื่อเพิ่มรถ"}
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

@@ -22,9 +22,11 @@ export default function CloseButton({ id }) {
           if (!r.ok || j.ok === false) window.alert(j.error || "ปิดเคสไม่สำเร็จ (อาจหมดเวลาล็อกอิน ลองรีเฟรช)");
         } catch {
           window.alert("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+        } finally {
+          // never leave the button stuck/disabled, whatever happened above
+          setBusy(false);
+          try { router.refresh(); } catch {}
         }
-        setBusy(false);
-        router.refresh();
       }}
     >
       ปิดเคส

@@ -118,7 +118,7 @@ export default function DriverAdmin({ drivers }) {
           />
         </div>
         <div style={{ flex: "1 1 160px" }}>
-          <label style={{ display: "block", fontSize: 12 }} className="muted">เบอร์โทร</label>
+          <label style={{ display: "block", fontSize: 12 }} className="muted">เบอร์โทร (เว้นว่าง = ลบเบอร์เดิม)</label>
           <input
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
