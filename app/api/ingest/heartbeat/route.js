@@ -25,14 +25,18 @@ export async function POST(request) {
   let matchedDriver = null;
   if (rawDriverCode) {
     const norm = normalizeDriverCode(rawDriverCode.replace(/^EMP/i, ""));
+    // same rule as normalizeDriverCode() in SQL: strip EMP, pad 1-3 digits to 3 (old rows like "EMP1")
     const [found] = await sql`
       SELECT code, name, phone FROM drivers
       WHERE UPPER(code) = ${norm}
-         OR UPPER(code) = ${"EMP" + norm}
-         OR REGEXP_REPLACE(UPPER(code), '^EMP', '') = ${norm}
+         OR (CASE WHEN REGEXP_REPLACE(UPPER(TRIM(code)), '^EMP[[:space:]_-]*', '') ~ '^[0-9]{1,3}$'
+                  THEN LPAD(REGEXP_REPLACE(UPPER(TRIM(code)), '^EMP[[:space:]_-]*', ''), 3, '0')
+                  ELSE REGEXP_REPLACE(UPPER(TRIM(code)), '^EMP[[:space:]_-]*', '') END) = ${norm}
+      ORDER BY (UPPER(code) = ${norm}) DESC
       LIMIT 1`;
     if (found) {
       matchedDriver = { code: found.code, name: found.name };   // no phone number back to the board (PDPA)
+      // driver_phone = the NEW driver's phone (null if none), never the previous driver's number
       await sql`
         UPDATE trucks SET
           last_seen    = now(),
@@ -47,7 +51,7 @@ export async function POST(request) {
           public_ip    = ${publicIp},
           driver_code  = ${found.code},
           driver_name  = ${found.name},
-          driver_phone = COALESCE(${found.phone}, driver_phone)
+          driver_phone = ${found.phone ?? null}::text
         WHERE id = ${truck.id}`;
     } else {
       await sql`
@@ -94,11 +98,15 @@ export async function POST(request) {
       sim_drive    = ${b.sim === true}
     WHERE id = ${truck.id}`;
 
-  // Send compact employee directory back so the board can show names offline when typing 3-digit code
+  // Send compact employee directory back so the board can show names offline when typing 3-digit code.
+  // Only to a board that proved it holds its real API key: the X-Truck-Code header is public
+  // (anyone can auto-register a truck code), so it must not leak the staff list.
   let drivers = [];
-  try {
-    drivers = await sql`SELECT code, name FROM drivers ORDER BY code ASC LIMIT 200`;
-  } catch {}
+  if (truck.via_key) {
+    try {
+      drivers = await sql`SELECT code, name FROM drivers ORDER BY code ASC LIMIT 200`;
+    } catch {}
+  }
 
   // One-click key provisioning / removal: if admin pressed "ออก Key" or "ปลดล็อก Key" within 2 min, hand to board once.
   let provisionKey = null;
