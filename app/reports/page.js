@@ -80,6 +80,7 @@ export default async function ReportsPage() {
       driver: [e.driver_name, e.driver_code ? `(${e.driver_code})` : ""].filter(Boolean).join(" "),
       reason: thReasons(e.reasons),
       time: thTime(e.happened_at),
+      ts: new Date(e.happened_at).getTime() || 0, // for newest-first sorting in the map popup
     }));
 
   const totalAlarms = trucks.reduce((s, t) => s + t.alarm_count, 0);
@@ -114,7 +115,7 @@ export default async function ReportsPage() {
           🗺️ แผนที่จุดเสี่ยงความง่วง (Drowsiness Risk Heatmap · {heatPoints.length} จุด)
         </b>
         <div className="muted" style={{ fontSize: 13, marginBottom: 8 }}>
-          วงกลมสีแดง = จุดที่เกิดการหลับใน (ระดับแดง) · วงกลมสีส้ม = จุดที่เริ่มมีอาการง่วง (ระดับเหลือง) · คลิกที่จุดเพื่อดูคนขับและสาเหตุ
+          วงกลมสีแดง = จุดที่เกิดการหลับใน (ระดับแดง) · วงกลมสีส้ม = จุดที่เริ่มมีอาการง่วง (ระดับเหลือง) · วงยิ่งใหญ่ = ยิ่งเกิดซ้ำหลายเคสที่จุดเดียวกัน · คลิกที่จุดเพื่อดูคนขับและสาเหตุ
         </div>
         <ReportMap points={heatPoints} />
       </div>
