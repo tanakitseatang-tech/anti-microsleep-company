@@ -7,7 +7,9 @@ import { str } from "@/lib/validate";
 
 export const runtime = "nodejs";
 
-async function upsertRow(r, makeNewKey = false) {
+// replace = true (editing one truck in the form): an emptied box clears that value.
+// replace = false (datasheet import): empty cells keep what is already saved.
+async function upsertRow(r, makeNewKey = false, replace = false) {
   const code = str(r?.code, 20);
   if (!code || !/^[\p{L}\p{N} ._-]+$/u.test(code)) return null;
   const name = str(r?.name, 60);
@@ -31,13 +33,13 @@ async function upsertRow(r, makeNewKey = false) {
     )
     ON CONFLICT (code) DO UPDATE SET
       key_revoked  = false,
-      name         = COALESCE(${name}, trucks.name),
-      brand        = COALESCE(${brand}, trucks.brand),
-      model        = COALESCE(${model}, trucks.model),
-      vehicle_info = COALESCE(${vehicle_info}, trucks.vehicle_info),
-      driver_code  = COALESCE(${driver_code}, trucks.driver_code),
-      driver_name  = COALESCE(${driver_name}, trucks.driver_name),
-      driver_phone = COALESCE(${driver_phone}, trucks.driver_phone),
+      name         = CASE WHEN ${replace} THEN ${name}::text ELSE COALESCE(${name}::text, trucks.name) END,
+      brand        = CASE WHEN ${replace} THEN ${brand}::text ELSE COALESCE(${brand}::text, trucks.brand) END,
+      model        = CASE WHEN ${replace} THEN ${model}::text ELSE COALESCE(${model}::text, trucks.model) END,
+      vehicle_info = CASE WHEN ${replace} THEN ${vehicle_info}::text ELSE COALESCE(${vehicle_info}::text, trucks.vehicle_info) END,
+      driver_code  = CASE WHEN ${replace} THEN ${driver_code}::text ELSE COALESCE(${driver_code}::text, trucks.driver_code) END,
+      driver_name  = CASE WHEN ${replace} THEN ${driver_name}::text ELSE COALESCE(${driver_name}::text, trucks.driver_name) END,
+      driver_phone = CASE WHEN ${replace} THEN ${driver_phone}::text ELSE COALESCE(${driver_phone}::text, trucks.driver_phone) END,
       -- re-adding a deleted/revoked truck must NOT bring its old (possibly stolen) key back
       api_key_hash = CASE WHEN ${Boolean(makeNewKey)} OR trucks.key_revoked THEN ${keyHash} ELSE trucks.api_key_hash END,
       key_required = CASE WHEN ${Boolean(makeNewKey)} OR trucks.key_revoked THEN false ELSE trucks.key_required END,
@@ -96,7 +98,7 @@ export async function POST(request) {
   }
 
   // Single truck add / update
-  const res = await upsertRow(b, Boolean(b?.issue_key));
+  const res = await upsertRow(b, Boolean(b?.issue_key), b?.replace === true);
   if (!res) {
     return NextResponse.json(
       { ok: false, error: "รหัสรถใช้ตัวอักษร ตัวเลข . _ - และเว้นวรรคได้ ไม่เกิน 20 ตัว" },
