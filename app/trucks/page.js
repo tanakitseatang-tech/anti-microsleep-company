@@ -17,7 +17,7 @@ export default async function Trucks() {
   const trucks = await sql`
     SELECT id, code, name, brand, model, vehicle_info,
            driver_code, driver_name, driver_phone,
-           key_revoked, last_seen, app_version
+           key_revoked, key_required, last_seen, app_version
     FROM trucks ORDER BY code`;
   const rows = trucks.map((t) => ({
     id: t.id,
@@ -30,6 +30,7 @@ export default async function Trucks() {
     driver_name: t.driver_name || "",
     driver_phone: t.driver_phone || "",
     revoked: t.key_revoked,
+    key_required: Boolean(t.key_required),
     online: isOnline(t.last_seen),
     seen: thTime(t.last_seen),
     version: t.app_version,
