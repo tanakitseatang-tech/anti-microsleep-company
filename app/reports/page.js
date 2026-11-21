@@ -21,7 +21,7 @@ export default async function ReportsPage() {
            count(e.id) FILTER (WHERE e.closed_at IS NOT NULL)::int AS closed_count,
            count(e.id) FILTER (WHERE e.closed_at IS NULL)::int AS open_count
     FROM trucks t
-    LEFT JOIN events e ON e.truck_id = t.id
+    LEFT JOIN events e ON e.truck_id = t.id AND NOT e.archived
     WHERE t.key_revoked = false
     GROUP BY t.id
     ORDER BY alarm_count DESC, warn_count DESC, t.code ASC`;
@@ -31,6 +31,7 @@ export default async function ReportsPage() {
            t.code AS truck, t.driver_name, t.driver_code
     FROM events e
     JOIN trucks t ON t.id = e.truck_id
+    WHERE NOT e.archived
     ORDER BY e.happened_at DESC
     LIMIT 400`;
 
