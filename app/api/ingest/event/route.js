@@ -6,7 +6,7 @@
 // LINE: no message here. A red alarm goes to the admin's LINE only if the driver has not
 // pressed "ฉันตื่นแล้ว" within 1 minute (lib/escalate.js, checked on heartbeats and page loads).
 import { NextResponse } from "next/server";
-import { sql } from "@/lib/db";
+import { sql, ensureTruckColumns, normalizeDriverCode } from "@/lib/db";
 import { truckFromRequest } from "@/lib/auth";
 import { num, str, boardTime } from "@/lib/validate";
 import { escalateOverdue } from "@/lib/escalate";
@@ -15,6 +15,7 @@ export const runtime = "nodejs";
 const MAX_BATCH = 200;
 
 export async function POST(request) {
+  await ensureTruckColumns();
   const truck = await truckFromRequest(request);
   if (!truck) return NextResponse.json({ ok: false, error: "bad API key" }, { status: 401 });
   let body;
@@ -31,7 +32,19 @@ export async function POST(request) {
     const at = boardTime(e?.t);
     if (level === null || at === null) { skipped++; continue; }
     const reasons = Array.isArray(e.reasons) ? e.reasons.slice(0, 10).map((r) => str(r, 120)).filter(Boolean) : [];
-    const driverLabel = str(e.driver, 60) || [truck.driver_name, truck.driver_code].filter(Boolean).join(" · ") || null;
+    let driverLabel = str(e.driver, 60);
+    if (driverLabel) {
+      const norm = normalizeDriverCode(driverLabel.replace(/^EMP/i, ""));
+      const [found] = await sql`
+        SELECT code, name FROM drivers
+        WHERE UPPER(code) = ${norm}
+           OR UPPER(code) = ${"EMP" + norm}
+           OR REGEXP_REPLACE(UPPER(code), '^EMP', '') = ${norm}
+        LIMIT 1`;
+      if (found) driverLabel = `${found.name} · ${found.code}`;
+    } else {
+      driverLabel = [truck.driver_name, truck.driver_code].filter(Boolean).join(" · ") || null;
+    }
     const rows = await sql`
       INSERT INTO events (truck_id, event_uid, level, reasons, driver_code, happened_at, lat, lon, speed)
       VALUES (${truck.id}, ${str(e.id, 64)}, ${level}, ${reasons}, ${driverLabel}, ${at},
@@ -46,4 +59,4 @@ export async function POST(request) {
     console.error("LINE escalate error:", err?.message);   // never lose the saved events over LINE
   }
   return NextResponse.json({ ok: true, saved, skipped });
-}
+    }
