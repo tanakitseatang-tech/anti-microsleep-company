@@ -3,7 +3,7 @@
 import { NextResponse } from "next/server";
 import { sql, ensureTruckColumns, normalizeDriverCode } from "@/lib/db";
 import { truckFromRequest } from "@/lib/auth";
-import { num, str } from "@/lib/validate";
+import { num, int, str, obj } from "@/lib/validate";
 import { escalateOverdue } from "@/lib/escalate";
 
 export const runtime = "nodejs";
@@ -13,7 +13,7 @@ export async function POST(request) {
   const truck = await truckFromRequest(request);
   if (!truck) return NextResponse.json({ ok: false, error: "bad API key" }, { status: 401 });
   let b;
-  try { b = await request.json(); } catch { b = {}; }
+  try { b = obj(await request.json()); } catch { b = {}; }
   const lat = num(b.lat, -90, 90), lon = num(b.lon, -180, 180);
   // board's own Wi-Fi address (for the /go/<truck> link to the driver page) + the internet
   // address it sends from (the driver's phone hotspot), used by /go to find "my" truck
@@ -39,7 +39,7 @@ export async function POST(request) {
           last_lat     = COALESCE(${lat}, last_lat),
           last_lon     = COALESCE(${lon}, last_lon),
           last_speed   = ${num(b.speed, 0, 300)},
-          last_level   = ${num(b.level, 0, 2)},
+          last_level   = ${int(b.level, 0, 2)},
           camera_ok    = ${typeof b.camera_ok === "boolean" ? b.camera_ok : null},
           app_version  = ${str(b.version, 40)},
           local_ip     = ${localIp},
@@ -56,7 +56,7 @@ export async function POST(request) {
           last_lat     = COALESCE(${lat}, last_lat),
           last_lon     = COALESCE(${lon}, last_lon),
           last_speed   = ${num(b.speed, 0, 300)},
-          last_level   = ${num(b.level, 0, 2)},
+          last_level   = ${int(b.level, 0, 2)},
           camera_ok    = ${typeof b.camera_ok === "boolean" ? b.camera_ok : null},
           app_version  = ${str(b.version, 40)},
           local_ip     = ${localIp},
@@ -74,7 +74,7 @@ export async function POST(request) {
         last_lat    = COALESCE(${lat}, last_lat),
         last_lon    = COALESCE(${lon}, last_lon),
         last_speed  = ${num(b.speed, 0, 300)},
-        last_level  = ${num(b.level, 0, 2)},
+        last_level  = ${int(b.level, 0, 2)},
         camera_ok   = ${typeof b.camera_ok === "boolean" ? b.camera_ok : null},
         app_version = ${str(b.version, 40)},
         local_ip    = ${localIp},
@@ -90,7 +90,8 @@ export async function POST(request) {
   await sql`
     UPDATE trucks SET
       rest_line_at = CASE WHEN rest_until IS DISTINCT FROM ${restUntil}::timestamptz THEN NULL ELSE rest_line_at END,
-      rest_until   = ${restUntil}::timestamptz
+      rest_until   = ${restUntil}::timestamptz,
+      sim_drive    = ${b.sim === true}
     WHERE id = ${truck.id}`;
 
   // Send compact employee directory back so the board can show names offline when typing 3-digit code
