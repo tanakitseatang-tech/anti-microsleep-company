@@ -38,8 +38,9 @@ async function upsertRow(r, makeNewKey = false) {
       driver_code  = COALESCE(${driver_code}, trucks.driver_code),
       driver_name  = COALESCE(${driver_name}, trucks.driver_name),
       driver_phone = COALESCE(${driver_phone}, trucks.driver_phone),
-      api_key_hash = CASE WHEN ${Boolean(makeNewKey)} THEN ${keyHash} ELSE trucks.api_key_hash END,
-      key_required = CASE WHEN ${Boolean(makeNewKey)} THEN false ELSE trucks.key_required END,
+      -- re-adding a deleted/revoked truck must NOT bring its old (possibly stolen) key back
+      api_key_hash = CASE WHEN ${Boolean(makeNewKey)} OR trucks.key_revoked THEN ${keyHash} ELSE trucks.api_key_hash END,
+      key_required = CASE WHEN ${Boolean(makeNewKey)} OR trucks.key_revoked THEN false ELSE trucks.key_required END,
       pending_api_key = CASE WHEN ${Boolean(makeNewKey)} THEN ${key} ELSE trucks.pending_api_key END,
       pending_key_expires_at = CASE WHEN ${Boolean(makeNewKey)} THEN now() + interval '2 minutes' ELSE trucks.pending_key_expires_at END`;
   // Keep employee directory in sync when a truck row has both driver_code and driver_name
