@@ -118,7 +118,7 @@ function toCsv(rows) {
     let s = String(v ?? "");
     if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;   // Excel must not run it as a formula
 
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const body = rows.map((r) => fields.map((f) => escCsv(r[f])).join(","));
   return "\uFEFF" + [headers.join(","), ...body].join("\r\n");
@@ -148,6 +148,7 @@ export default function TruckAdmin({ trucks }) {
   const [sheetText, setSheetText] = useState("");
   const [search, setSearch] = useState("");
   const [issuedKey, setIssuedKey] = useState(null); // { code, key }
+  const [editing, setEditing] = useState(false);     // editing an existing truck: its code is locked
 
   async function issueKey(t) {
     if (!confirm(`ส่งและล็อก API Key อัตโนมัติสำหรับรถคันที่ ${t.code}?\n(บอร์ดที่ออนไลน์อยู่จะรับ Key เองใน ~10 วินาที ไม่ต้องก๊อปวาง)`)) return;
@@ -212,12 +213,13 @@ export default function TruckAdmin({ trucks }) {
       const r = await fetch("/api/trucks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, replace: editing }),
       });
       const j = await r.json();
       if (j.ok) {
         setOkMsg(`บันทึกข้อมูลรถคันที่ ${j.code} เรียบร้อยแล้ว`);
         setForm(EMPTY_FORM);
+        setEditing(false);
         router.refresh();
       } else {
         setMsg(j.error || "บันทึกไม่สำเร็จ");
@@ -270,6 +272,7 @@ export default function TruckAdmin({ trucks }) {
   }
 
   function editRow(t) {
+    setEditing(true);
     setForm({
       code: t.code || "",
       name: t.name || "",
@@ -421,7 +424,9 @@ export default function TruckAdmin({ trucks }) {
         </b>
         <form onSubmit={saveSingle}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 8, marginBottom: 10 }}>
-            <input value={form.code} onChange={(e) => setField("code", e.target.value)} placeholder="รหัสรถ/บอร์ด * (เช่น 1)" required maxLength={20} />
+            <input value={form.code} onChange={(e) => setField("code", e.target.value)} placeholder="รหัสรถ/บอร์ด * (เช่น 1)" required maxLength={20}
+              readOnly={editing} title={editing ? "แก้รหัสรถไม่ได้ระหว่างแก้ไข (กันเขียนทับคันอื่น)" : undefined}
+              style={editing ? { opacity: 0.6 } : undefined} />
             <input value={form.name} onChange={(e) => setField("name", e.target.value)} placeholder="ทะเบียนรถ (เช่น 1กข-4582 กทม.)" maxLength={60} />
             <input value={form.brand} onChange={(e) => setField("brand", e.target.value)} placeholder="ยี่ห้อรถ (เช่น Isuzu, Hino, Toyota)" maxLength={60} />
             <input value={form.model} onChange={(e) => setField("model", e.target.value)} placeholder="รุ่นรถ (เช่น ELF NMR 130, Revo)" maxLength={60} />
@@ -433,7 +438,7 @@ export default function TruckAdmin({ trucks }) {
           <div style={{ display: "flex", gap: 8 }}>
             <button className="primary" disabled={busy}>💾 บันทึกข้อมูลรถและคนขับ</button>
             {form.code && (
-              <button type="button" onClick={() => setForm(EMPTY_FORM)}>ยกเลิกการแก้ไข</button>
+              <button type="button" onClick={() => { setForm(EMPTY_FORM); setEditing(false); }}>ยกเลิกการแก้ไข</button>
             )}
           </div>
         </form>

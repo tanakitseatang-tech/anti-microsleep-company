@@ -5,8 +5,9 @@ export default function AlertsExport({ events }) {
     const headers = ["เวลา", "รหัสรถ", "ทะเบียน/ยี่ห้อ", "ผู้ขับรถ", "เบอร์โทร", "ระดับ", "สาเหตุ", "ความเร็ว (กม./ชม.)", "ละติจูด", "ลองจิจูด", "สถานะเคส"];
     const esc = (v) => {
       let s = String(v ?? "");
-      if (/^[=+@\t\r]/.test(s) || /^-[^\d]/.test(s)) s = "'" + s;   // Excel must not run it as a formula (negative numbers stay numbers)
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      // Excel must not run it as a formula; plain negative numbers (-12.5) stay numbers
+      if (/^[=+@\t\r]/.test(s) || (s.startsWith("-") && !/^-\d+(\.\d+)?$/.test(s))) s = "'" + s;
+      return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const rows = (events || []).map((e) => [
       e.time_th,
