@@ -17,13 +17,17 @@ export default async function RootLayout({ children }) {
             <nav>
               <Link href="/">แผนที่รถ</Link>
               <Link href="/alerts">การแจ้งเตือน</Link>
-              <Link href="/reports">รายงานวิเคราะห์ & Heatmap</Link>
-              {(user.role === "admin" || user.role === "manager") && <Link href="/trucks">จัดการรถ / พนักงาน (Datasheet)</Link>}
+              <Link href="/reports">รายงานวิเคราะห์</Link>
+              {(user.role === "admin" || user.role === "manager") && <Link href="/trucks">จัดการรถ / พนักงาน</Link>}
             </nav>
             <span className="who">{user.username} ({user.role}) <LogoutButton /></span>
           </header>
         )}
         <main>{children}</main>
+        <footer className="site-foot">
+          Anti-Microsleep Team · ระบบตรวจจับการหลับในบน <b>Arduino UNO Q</b> (AI ประมวลผลบนบอร์ดในรถ)
+          · <Link href="/credits">แหล่งที่มา &amp; ความเป็นส่วนตัว (PDPA)</Link>
+        </footer>
       </body>
     </html>
   );

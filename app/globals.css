@@ -15,7 +15,9 @@ a { color: var(--accent); text-decoration: none; }
 header.top { display: flex; align-items: center; gap: 16px; padding: 10px 16px;
              background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 header.top b { font-size: 16px; }
-header.top nav { display: flex; gap: 14px; }
+header.top nav { display: flex; gap: 6px 14px; flex-wrap: wrap; }
+header.top nav a { white-space: nowrap; }
+.site-foot { max-width: 1200px; margin: 8px auto 24px; padding: 0 16px; color: var(--muted); font-size: 13px; text-align: center; }
 header.top .who { margin-left: auto; color: var(--muted); font-size: 13px; display: flex; gap: 10px; align-items: center; }
 main { max-width: 1200px; margin: 0 auto; padding: 16px; }
 h1 { font-size: 20px; margin: 4px 0 14px; }
@@ -49,6 +51,7 @@ h1 { font-size: 20px; margin: 4px 0 14px; }
 @media (max-width: 760px) {
   .mapwrap.has-detail #map { height: 340px; }
   .tdetail { position: static; width: auto; margin-top: 10px; box-shadow: none; }
+  button, .btn { min-height: 40px; }        /* easier to tap on a phone */
 }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }

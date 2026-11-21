@@ -30,16 +30,16 @@ export default async function Dashboard() {
   const trucks = await sql`
     SELECT t.id, t.code, t.name, t.brand, t.model, t.vehicle_info,
            t.driver_code, t.driver_name, t.driver_phone,
-           t.last_seen, t.last_lat, t.last_lon, t.last_speed, t.last_level, t.camera_ok, t.rest_until,
+           t.last_seen, t.last_lat, t.last_lon, t.last_speed, t.last_level, t.camera_ok, t.rest_until, t.sim_drive,
            (SELECT count(*)::int FROM events e WHERE e.truck_id = t.id AND e.closed_at IS NULL) AS open_alerts,
            (SELECT count(*)::int FROM events e WHERE e.truck_id = t.id AND e.closed_at IS NULL AND e.level = 2) AS open_red,
-           (SELECT json_build_object('level', e.level, 'reasons', e.reasons, 'at', e.happened_at,
+           (SELECT json_build_object('id', e.id, 'level', e.level, 'reasons', e.reasons, 'at', e.happened_at,
                                      'open', e.closed_at IS NULL)
-              FROM events e WHERE e.truck_id = t.id ORDER BY e.happened_at DESC LIMIT 1) AS last_event
+              FROM events e WHERE e.truck_id = t.id AND NOT e.archived ORDER BY e.happened_at DESC LIMIT 1) AS last_event
     FROM trucks t WHERE t.key_revoked = false ORDER BY t.code`;
   const [today] = await sql`
     SELECT count(*) FILTER (WHERE level = 2)::int AS alarms, count(*)::int AS total
-    FROM events WHERE happened_at >= date_trunc('day', now() AT TIME ZONE 'Asia/Bangkok') AT TIME ZONE 'Asia/Bangkok'`;
+    FROM events WHERE NOT archived AND happened_at >= date_trunc('day', now() AT TIME ZONE 'Asia/Bangkok') AT TIME ZONE 'Asia/Bangkok'`;
 
   const rows = trucks.map((t) => ({
     code: t.code,
@@ -58,10 +58,11 @@ export default async function Dashboard() {
     speed: t.last_speed,
     camera_ok: t.camera_ok,
     rest: restInfo(t.rest_until),
+    sim_drive: !!t.sim_drive,
     open: t.open_alerts,
     open_red: t.open_red,
     last_event: t.last_event
-      ? { level: t.last_event.level, reasons: thReasons(t.last_event.reasons), at: thTime(t.last_event.at), open: t.last_event.open }
+      ? { id: t.last_event.id, level: t.last_event.level, reasons: thReasons(t.last_event.reasons), at: thTime(t.last_event.at), open: t.last_event.open }
       : null,
   }));
   const online = rows.filter((r) => r.online).length;
