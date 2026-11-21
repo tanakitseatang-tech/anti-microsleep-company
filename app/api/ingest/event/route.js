@@ -8,7 +8,7 @@
 import { NextResponse } from "next/server";
 import { sql, ensureTruckColumns, normalizeDriverCode } from "@/lib/db";
 import { truckFromRequest } from "@/lib/auth";
-import { num, str, boardTime } from "@/lib/validate";
+import { num, int, str, boardTime } from "@/lib/validate";
 import { escalateOverdue } from "@/lib/escalate";
 
 export const runtime = "nodejs";
@@ -28,7 +28,8 @@ export async function POST(request) {
   }
   let saved = 0, skipped = 0;
   for (const e of list) {
-    const level = num(e?.level, 1, 2);
+    if (!e || typeof e !== "object") { skipped++; continue; }
+    const level = int(e?.level, 1, 2);
     const at = boardTime(e?.t);
     if (level === null || at === null) { skipped++; continue; }
     const reasons = Array.isArray(e.reasons) ? e.reasons.slice(0, 10).map((r) => str(r, 120)).filter(Boolean) : [];
@@ -59,4 +60,4 @@ export async function POST(request) {
     console.error("LINE escalate error:", err?.message);   // never lose the saved events over LINE
   }
   return NextResponse.json({ ok: true, saved, skipped });
-    }
+}
