@@ -9,6 +9,7 @@ import CloseAllButton from "../components/CloseAllButton";
 import AutoRefresh from "../components/AutoRefresh";
 import LineTestButton from "../components/LineTestButton";
 import AlertsExport from "../components/AlertsExport";
+import ArchiveButton from "../components/ArchiveButton";
 import { escalateFromPage } from "@/lib/escalatePage";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,7 @@ export default async function Alerts({ searchParams }) {
   if (!user) redirect("/login");
   await ensureTruckColumns();
   await escalateFromPage();
-  const show = searchParams?.show === "all" ? "all" : "open";
+  const show = ["all", "archived"].includes(searchParams?.show) ? searchParams.show : "open";
   const events = await sql`
     SELECT e.id, e.level, e.reasons, e.driver_code, e.happened_at, e.lat, e.lon, e.speed,
            e.closed_at, e.close_note,
@@ -28,11 +29,14 @@ export default async function Alerts({ searchParams }) {
     FROM events e
     JOIN trucks t ON t.id = e.truck_id
     LEFT JOIN users u ON u.id = e.closed_by
-    WHERE (${show}::text = 'all' OR e.closed_at IS NULL)
+    WHERE (CASE ${show}::text WHEN 'archived' THEN e.archived
+                WHEN 'all' THEN NOT e.archived
+                ELSE NOT e.archived AND e.closed_at IS NULL END)
     ORDER BY e.happened_at DESC
     LIMIT 300`;
-  const [{ open_count: openCount }] = await sql`
-    SELECT count(*)::int AS open_count FROM events WHERE closed_at IS NULL`;
+  const [{ open_count: openCount, archived_count: archivedCount }] = await sql`
+    SELECT count(*) FILTER (WHERE closed_at IS NULL)::int AS open_count,
+           count(*) FILTER (WHERE archived)::int AS archived_count FROM events`;
 
   const exportList = events.map((e) => {
     const carSub = [e.truck_name, e.brand, e.model].filter(Boolean).join(" · ");
@@ -58,13 +62,16 @@ export default async function Alerts({ searchParams }) {
   return (
     <>
       <AutoRefresh seconds={30} />
-      <h1>การแจ้งเตือน</h1>
+      <h1>การแจ้งเตือน{show === "archived" ? " · ข้อมูลทดสอบที่ซ่อนไว้" : ""}</h1>
       <div className="filters" style={{ alignItems: "center" }}>
         <Link className="btn" href="/alerts">เคสที่ยังเปิด</Link>
         <Link className="btn" href="/alerts?show=all">ทั้งหมด (90 วันล่าสุด)</Link>
         <AlertsExport events={exportList} />
         {canManage(user) && <CloseAllButton count={openCount} />}
         {user.role === "admin" && <LineTestButton />}
+        {user.role === "admin" && show !== "archived" && <ArchiveButton />}
+        {archivedCount > 0 && <Link className="btn" href="/alerts?show=archived">🗂️ ข้อมูลทดสอบที่ซ่อน ({archivedCount})</Link>}
+        {user.role === "admin" && show === "archived" && <ArchiveButton undo count={archivedCount} />}
       </div>
       <div className="card">
         <table>
