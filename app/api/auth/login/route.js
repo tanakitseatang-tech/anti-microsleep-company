@@ -24,6 +24,7 @@ export async function POST(request) {
 async function login(request) {
   let body;
   try { body = await request.json(); } catch { body = {}; }
+  if (!body || typeof body !== "object") body = {};
   const username = String(body.username || "").trim().toLowerCase();
   const password = String(body.password || "");
   const fail = (msg, status = 401) => NextResponse.json({ ok: false, error: msg }, { status });
