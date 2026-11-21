@@ -169,6 +169,29 @@ export default function TruckAdmin({ trucks }) {
     setBusy(false);
   }
 
+  async function removeKey(t) {
+    if (!confirm(`ปลดล็อก / ลบ API Key ของรถคันที่ ${t.code}?\n(บอร์ดจะกลับไปเชื่อมต่ออัตโนมัติด้วยรหัสรถเหมือนเดิม)`)) return;
+    setBusy(true); setMsg(""); setOkMsg("");
+    try {
+      const r = await fetch("/api/trucks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: t.code, remove_key: true }),
+      });
+      const j = await r.json();
+      if (j.ok) {
+        if (issuedKey?.code === t.code) setIssuedKey(null);
+        setOkMsg(`ปลดล็อก API Key ของรถคันที่ ${t.code} เรียบร้อยแล้ว`);
+        router.refresh();
+      } else {
+        setMsg(j.error || "ปลดล็อก Key ไม่สำเร็จ");
+      }
+    } catch {
+      setMsg("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+    }
+    setBusy(false);
+  }
+
   const previewRows = sheetText.trim() ? parseDatasheet(sheetText) : [];
 
   function setField(k, v) {
@@ -457,6 +480,9 @@ export default function TruckAdmin({ trucks }) {
                 <td style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   <button type="button" onClick={() => editRow(t)}>✏️ แก้ไข</button>
                   <button type="button" disabled={busy} onClick={() => issueKey(t)}>🔑 ออก Key</button>
+                  {t.key_required && (
+                    <button type="button" disabled={busy} onClick={() => removeKey(t)}>🔓 ปลดล็อก Key</button>
+                  )}
                   <button type="button" onClick={() => deleteRow(t)}>🗑️ ลบ</button>
                 </td>
               </tr>
