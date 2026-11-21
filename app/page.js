@@ -32,6 +32,7 @@ export default async function Dashboard() {
            t.driver_code, t.driver_name, t.driver_phone,
            t.last_seen, t.last_lat, t.last_lon, t.last_speed, t.last_level, t.camera_ok, t.rest_until,
            (SELECT count(*)::int FROM events e WHERE e.truck_id = t.id AND e.closed_at IS NULL) AS open_alerts,
+           (SELECT count(*)::int FROM events e WHERE e.truck_id = t.id AND e.closed_at IS NULL AND e.level = 2) AS open_red,
            (SELECT json_build_object('level', e.level, 'reasons', e.reasons, 'at', e.happened_at,
                                      'open', e.closed_at IS NULL)
               FROM events e WHERE e.truck_id = t.id ORDER BY e.happened_at DESC LIMIT 1) AS last_event
@@ -58,6 +59,7 @@ export default async function Dashboard() {
     camera_ok: t.camera_ok,
     rest: restInfo(t.rest_until),
     open: t.open_alerts,
+    open_red: t.open_red,
     last_event: t.last_event
       ? { level: t.last_event.level, reasons: thReasons(t.last_event.reasons), at: thTime(t.last_event.at), open: t.last_event.open }
       : null,
