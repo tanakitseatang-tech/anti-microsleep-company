@@ -3,6 +3,55 @@ import { useEffect, useRef, useState } from "react";
 
 const COLORS = { 0: "#1f9d55", 1: "#c98a00", 2: "#d32f2f", off: "#8a919c" };
 const LEVEL_TXT = ["ปกติ", "เตือน (ง่วง)", "อันตราย (หลับใน)"];
+const escHtml = (s) =>
+  String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+// Demo-only client-side fleet simulator: 7 trucks driving on real Thai highways (OSRM).
+// Zero DB writes, zero Vercel/Supabase quota burn, clearly labeled "(จำลอง)" for judges.
+const SIM_FLEET_DEFS = [
+  { code: "SIM-02", name: "70-2002 กทม (จำลอง)", brand: "ISUZU", model: "GXZ 360", driver_name: "สมศักดิ์ (จำลอง)", driver_code: "902", driver_phone: "080-000-0002", speedKmh: 88, start: [14.0208, 100.6164], end: [16.8839, 99.1258] },
+  { code: "SIM-03", name: "70-3003 กทม (จำลอง)", brand: "HINO", model: "Victor 500", driver_name: "วิชัย (จำลอง)", driver_code: "903", driver_phone: "080-000-0003", speedKmh: 82, start: [13.1119, 99.9398], end: [11.8124, 99.7973] },
+  { code: "SIM-04", name: "70-4004 กทม (จำลอง)", brand: "ISUZU", model: "FXZ 360", driver_name: "ประยุทธ์ (จำลอง)", driver_code: "904", driver_phone: "080-000-0004", speedKmh: 85, start: [14.5289, 100.9101], end: [14.9799, 102.0978] },
+  { code: "SIM-05", name: "70-5005 ชบ (จำลอง)", brand: "SCANIA", model: "P360", driver_name: "สุรชัย (จำลอง)", driver_code: "905", driver_phone: "080-000-0005", speedKmh: 80, start: [13.7278, 100.7478], end: [13.0956, 100.9182] },
+  { code: "SIM-06", name: "70-6006 สฎ (จำลอง)", brand: "HINO", model: "FM1A", driver_name: "มานพ (จำลอง)", driver_code: "906", driver_phone: "080-000-0006", speedKmh: 78, start: [10.4930, 99.1800], end: [9.1382, 99.3217] },
+  { code: "SIM-07", name: "70-7007 พล (จำลอง)", brand: "ISUZU", model: "FVM 240", driver_name: "อนุชา (จำลอง)", driver_code: "907", driver_phone: "080-000-0007", speedKmh: 80, start: [16.8211, 100.2659], end: [17.6200, 100.0993] },
+  { code: "SIM-08", name: "70-8008 นม (จำลอง)", brand: "UD", model: "Quester", driver_name: "เกรียงไกร (จำลอง)", driver_code: "908", driver_phone: "080-000-0008", speedKmh: 72, start: [14.0509, 101.3727], end: [14.7186, 102.0222] },
+];
+
+function haversineM(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const r = (d) => (d * Math.PI) / 180;
+  const a = Math.sin(r(lat2 - lat1) / 2) ** 2 + Math.cos(r(lat1)) * Math.cos(r(lat2)) * Math.sin(r(lon2 - lon1) / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+async function fetchSimRoad(start, end) {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
+    const res = await fetch(
+      `https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson`,
+      { signal: ctrl.signal }
+    );
+    clearTimeout(t);
+    if (res.ok) {
+      const d = await res.json();
+      if (d.code === "Ok" && d.routes?.[0]?.geometry?.coordinates?.length >= 2) {
+        return d.routes[0].geometry.coordinates.map(([lon, lat]) => [lat, lon]);
+      }
+    }
+  } catch {}
+  const pts = [];
+  for (let i = 0; i <= 40; i++) {
+    const f = i / 40;
+    pts.push([start[0] + (end[0] - start[0]) * f, start[1] + (end[1] - start[1]) * f]);
+  }
+  return pts;
+}
 
 let sharedAudioCtx = null;
 function playControlRoomBeep() {
@@ -208,9 +257,105 @@ export default function TruckMap({ trucks }) {
   const box = useRef(null);
   const st = useRef({ L: null, map: null, layer: null, markers: {}, fitted: false });
   const [soundOn, setSoundOn] = useState(false);
+  const [simOn, setSimOn] = useState(false);
+  const [simTrucks, setSimTrucks] = useState([]);
+  const simStateRef = useRef([]);
   const [sel, setSel] = useState(null);
   const selRef = useRef(null);
   selRef.current = sel;
+
+  useEffect(() => {
+    if (!simOn) {
+      setSimTrucks([]);
+      return;
+    }
+    let cancelled = false;
+    let timer = null;
+    (async () => {
+      if (simStateRef.current.length === 0) {
+        const built = await Promise.all(
+          SIM_FLEET_DEFS.map(async (cfg, idx) => {
+            const pts = await fetchSimRoad(cfg.start, cfg.end);
+            const seg = Math.floor(pts.length * (0.15 + ((idx * 13) % 50) / 100));
+            return {
+              ...cfg,
+              pts,
+              seg,
+              dist: 0,
+              lat: pts[seg][0],
+              lon: pts[seg][1],
+              speed: cfg.speedKmh,
+              level: 0,
+            };
+          })
+        );
+        if (cancelled) return;
+        simStateRef.current = built;
+      }
+      const snapshot = () =>
+        simStateRef.current.map((s) => ({
+          code: s.code,
+          name: s.name,
+          brand: s.brand,
+          model: s.model,
+          driver_name: s.driver_name,
+          driver_code: s.driver_code,
+          driver_phone: s.driver_phone,
+          lat: s.lat,
+          lon: s.lon,
+          speed: s.speed,
+          level: s.level,
+          online: true,
+          camera_ok: true,
+          open: 0,
+          open_red: 0,
+          last_seen: new Date().toISOString(),
+          last_event: null,
+          is_sim: true,
+        }));
+      setSimTrucks(snapshot());
+      st.current.fitted = false;
+      let tick = 0;
+      timer = setInterval(() => {
+        tick++;
+        const warnIdx = tick % 12 === 0 ? Math.floor(tick / 12) % simStateRef.current.length : -1;
+        for (let i = 0; i < simStateRef.current.length; i++) {
+          const s = simStateRef.current[i];
+          const curSpeed = Math.max(50, Math.min(95, s.speedKmh + (Math.random() - 0.5) * 4));
+          let dist = s.dist + 1.5 * (curSpeed / 3.6) * 4; // 4x visual speed so movement is clearly visible in a 5-min demo
+          let seg = s.seg;
+          while (seg < s.pts.length - 1) {
+            const a = s.pts[seg], b = s.pts[seg + 1];
+            const len = Math.max(1, haversineM(a[0], a[1], b[0], b[1]));
+            if (dist <= len) {
+              const f = dist / len;
+              s.lat = a[0] + (b[0] - a[0]) * f;
+              s.lon = a[1] + (b[1] - a[1]) * f;
+              s.seg = seg;
+              s.dist = dist;
+              s.speed = Math.round(curSpeed);
+              break;
+            }
+            dist -= len;
+            seg++;
+          }
+          if (seg >= s.pts.length - 1) {
+            s.pts.reverse();
+            s.seg = 0;
+            s.dist = 0;
+            s.lat = s.pts[0][0];
+            s.lon = s.pts[0][1];
+          }
+          s.level = i === warnIdx ? 1 : 0;
+        }
+        setSimTrucks(snapshot());
+      }, 1500);
+    })();
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+    };
+  }, [simOn]);
 
   // Remember the control-room sound switch in this browser (a reload no longer turns it off).
   // Browsers only allow sound after the first click/key on the page, so wake the audio then.
@@ -242,8 +387,9 @@ export default function TruckMap({ trucks }) {
 
   // Red banner + beep only for real danger: a truck in RED right now, or an open RED (level 2)
   // case. Yellow warnings (yawn, face not visible, ...) stay quiet in the table and /alerts.
+  const allTrucks = simOn ? [...trucks, ...simTrucks] : trucks;
   const dangerTrucks = trucks.filter((t) => (t.online && t.level === 2) || (t.open_red || 0) > 0);
-  const selTruck = sel != null ? trucks.find((t) => t.code === sel) : null;
+  const selTruck = sel != null ? allTrucks.find((t) => t.code === sel) : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -281,9 +427,9 @@ export default function TruckMap({ trucks }) {
   const lastBeepKey = useRef("");
 
   useEffect(() => {
-    draw(trucks);
+    draw(allTrucks);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trucks, sel]);
+  }, [trucks, simTrucks, simOn, sel]);
 
   useEffect(() => {
     if (soundOn && dangerKey && dangerKey !== lastBeepKey.current) {
@@ -320,7 +466,7 @@ export default function TruckMap({ trucks }) {
         fillColor: color,
         fillOpacity: 1,
       })
-        .bindTooltip(`คันที่ ${t.code}${t.driver_name ? " · " + t.driver_name : ""} — คลิกดูรายละเอียด`, { direction: "top", offset: [0, -10] })
+        .bindTooltip(`คันที่ ${escHtml(t.code)}${t.driver_name ? " · " + escHtml(t.driver_name) : ""} — คลิกดูรายละเอียด`, { direction: "top", offset: [0, -10] })
         .on("click", () => setSel(t.code))
         .addTo(layer);
       st.current.markers[t.code] = marker;
@@ -362,11 +508,25 @@ export default function TruckMap({ trucks }) {
       )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, fontSize: 13, gap: 8, flexWrap: "wrap" }} className="muted">
         <span>💡 คลิกที่ไอคอนรถบนแผนที่ (หรือปุ่ม 🎯 ในตาราง) เพื่อดูรายละเอียดและคัดลอกตำแหน่งส่งความช่วยเหลือ</span>
-        {dangerTrucks.length === 0 && (
-          <button type="button" onClick={toggleSound} style={{ padding: "3px 10px", fontSize: 12 }}>
-            {soundOn ? "🔊 เสียงเตือนศูนย์ควบคุม: เปิด" : "🔇 เปิดเสียงเตือนศูนย์ควบคุม"}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={() => setSimOn((v) => !v)}
+            style={{
+              padding: "3px 10px",
+              fontSize: 12,
+              background: simOn ? "rgba(37,99,235,0.16)" : undefined,
+              borderColor: simOn ? "#2563eb" : undefined,
+            }}
+          >
+            {simOn ? "🚗 จำลองกองรถ 7 คัน: เปิด" : "🚗 จำลองกองรถ 7 คัน"}
           </button>
-        )}
+          {dangerTrucks.length === 0 && (
+            <button type="button" onClick={toggleSound} style={{ padding: "3px 10px", fontSize: 12 }}>
+              {soundOn ? "🔊 เสียงเตือนศูนย์ควบคุม: เปิด" : "🔇 เปิดเสียงเตือนศูนย์ควบคุม"}
+            </button>
+          )}
+        </div>
       </div>
       <div className={`mapwrap${selTruck ? " has-detail" : ""}`}>
         <div id="map" ref={box} />
