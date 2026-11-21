@@ -32,7 +32,7 @@ export async function POST(request) {
          OR REGEXP_REPLACE(UPPER(code), '^EMP', '') = ${norm}
       LIMIT 1`;
     if (found) {
-      matchedDriver = found;
+      matchedDriver = { code: found.code, name: found.name };   // no phone number back to the board (PDPA)
       await sql`
         UPDATE trucks SET
           last_seen    = now(),
