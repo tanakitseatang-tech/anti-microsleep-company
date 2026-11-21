@@ -5,11 +5,15 @@ import { SESSION_COOKIE, readSessionToken } from "./lib/session";
 
 // /setup and /api/setup only work while the database has no users (see app/api/setup).
 // /go and /go/<truck>: drivers' QR codes → their board's driver page (no login, no company data shown).
-const PUBLIC = ["/login", "/setup", "/api/auth/login", "/api/setup", "/api/health", "/api/ingest/", "/api/cron/", "/go", "/credits"];
+// exact pages, plus whole folders ("/go/1", "/api/ingest/heartbeat"). "/loginx" is NOT public.
+const PUBLIC_EXACT = ["/login", "/setup", "/api/auth/login", "/api/setup", "/api/health", "/credits", "/go"];
+const PUBLIC_FOLDERS = ["/go/", "/api/ingest/", "/api/cron/"];
 
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
-  if (PUBLIC.some((p) => pathname === p || pathname.startsWith(p))) return NextResponse.next();
+  if (PUBLIC_EXACT.includes(pathname) || PUBLIC_FOLDERS.some((p) => pathname.startsWith(p))) {
+    return NextResponse.next();
+  }
   const user = await readSessionToken(request.cookies.get(SESSION_COOKIE)?.value);
   if (user) return NextResponse.next();
   if (pathname.startsWith("/api/")) {
