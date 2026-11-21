@@ -24,7 +24,9 @@ function restInfo(restUntil) {
 }
 
 export default async function Dashboard() {
-  if (!(await currentUser())) redirect("/login");
+  const user = await currentUser();
+  if (!user) redirect("/login");
+  const manage = user.role === "admin" || user.role === "manager";
   await ensureTruckColumns();
   await escalateFromPage();
   const trucks = await sql`
@@ -74,7 +76,7 @@ export default async function Dashboard() {
         <h1>แผนที่รถและข้อมูลผู้ขับทุกคัน</h1>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <Link className="btn" href="/reports">📊 รายงานวิเคราะห์ & Heatmap</Link>
-          <Link className="btn" href="/trucks">📋 จัดการรถ / นำเข้า Datasheet พนักงาน</Link>
+          {manage && <Link className="btn" href="/trucks">📋 จัดการรถ / นำเข้า Datasheet พนักงาน</Link>}
         </div>
       </div>
       <TruckMap trucks={rows} today={today} />

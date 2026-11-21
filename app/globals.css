@@ -51,7 +51,8 @@ h1 { font-size: 20px; margin: 4px 0 14px; }
 @media (max-width: 760px) {
   .mapwrap.has-detail #map { height: 340px; }
   .tdetail { position: static; width: auto; margin-top: 10px; box-shadow: none; }
-  button, .btn { min-height: 40px; }        /* easier to tap on a phone */
+  button, .btn { min-height: 44px; }        /* easier to tap on a phone */
+  header.top nav a { display: inline-flex; align-items: center; min-height: 44px; }
 }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
@@ -68,3 +69,14 @@ input { font: inherit; padding: 9px 10px; border-radius: 8px; border: 1px solid 
 .err { color: var(--alarm); min-height: 20px; font-size: 14px; }
 .muted { color: var(--muted); }
 .filters { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+
+/* printing a report (also from a dark-mode computer): black text on white, no buttons or menus */
+@media print {
+  :root { --bg: #fff; --panel: #fff; --line: #ccc; --text: #000; --muted: #444; }
+  body { background: #fff; color: #000; }
+  header.top, .site-foot, button, .btn, .filters, .leaflet-control-container { display: none !important; }
+  main { max-width: none; padding: 0; }
+  .card { overflow: visible; break-inside: avoid; border-color: #ccc; }
+  th, td { white-space: normal; }
+  .pill { color: #000 !important; border: 1px solid #000; background: none !important; }
+}
