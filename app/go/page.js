@@ -17,15 +17,17 @@ export default async function GoAny() {
     WHERE last_seen > now() - interval '2 minutes' AND local_ip IS NOT NULL
     ORDER BY code`;
   const mine = ip ? online.filter((t) => t.public_ip === ip) : [];
-  if (mine.length === 1) return <GoDriver truck={mine[0]} code={mine[0].code} />;
+  const safe = (t) => ({ code: t.code, local_ip: t.local_ip, online: true });   // no IPs / Wi-Fi names to the browser
+  if (mine.length === 1) return <GoDriver truck={safe(mine[0])} code={mine[0].code} />;
 
-  const list = mine.length > 1 ? mine : online;
+  // only trucks on this phone's own network; never the whole fleet to an outsider
+  const list = mine;
   return (
     <div style={{ maxWidth: 440, margin: "48px auto", padding: "0 16px", lineHeight: 1.6 }}>
       <h1 style={{ fontSize: 24, textAlign: "center" }}>เลือกรถของคุณ</h1>
       {list.length === 0 ? (
         <p className="muted" style={{ textAlign: "center" }}>
-          ยังไม่มีบอร์ดออนไลน์ · เปิด hotspot บนมือถือแล้วรอประมาณ 1 นาที แล้วสแกนใหม่
+          ไม่พบบอร์ดในเครือข่ายของมือถือนี้ · เปิด hotspot บนมือถือแล้วรอประมาณ 1 นาที แล้วสแกนใหม่ (หรือใช้ QR ประจำรถ /go/1)
         </p>
       ) : (
         <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
@@ -33,7 +35,7 @@ export default async function GoAny() {
             <Link key={t.code} href={`/go/${encodeURIComponent(t.code)}`}
               style={{ display: "block", padding: 14, borderRadius: 10, border: "1px solid #ccc",
                 fontSize: 18, fontWeight: 600, textDecoration: "none", color: "inherit" }}>
-              รถ {t.code}{t.name ? ` · ${t.name}` : ""}
+              รถ {t.code}
             </Link>
           ))}
         </div>
