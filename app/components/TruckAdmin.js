@@ -479,9 +479,10 @@ export default function TruckAdmin({ trucks }) {
                 </td>
                 <td style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   <button type="button" onClick={() => editRow(t)}>✏️ แก้ไข</button>
-                  <button type="button" disabled={busy} onClick={() => issueKey(t)}>🔑 ออก Key</button>
-                  {t.key_required && (
+                  {t.key_required ? (
                     <button type="button" disabled={busy} onClick={() => removeKey(t)}>🔓 ปลดล็อก Key</button>
+                  ) : (
+                    <button type="button" disabled={busy} onClick={() => issueKey(t)}>🔑 ออก Key</button>
                   )}
                   <button type="button" onClick={() => deleteRow(t)}>🗑️ ลบ</button>
                 </td>
