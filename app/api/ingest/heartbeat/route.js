@@ -99,6 +99,22 @@ export async function POST(request) {
     drivers = await sql`SELECT code, name FROM drivers ORDER BY code ASC LIMIT 200`;
   } catch {}
 
+  // One-click key provisioning: if admin pressed "ออก Key" within the last 2 min, hand it to the board once.
+  let provisionKey = null;
+  try {
+    const [pk] = await sql`
+      SELECT pending_api_key FROM trucks
+      WHERE id = ${truck.id}
+        AND pending_api_key IS NOT NULL
+        AND pending_key_expires_at > now()`;
+    if (pk?.pending_api_key) {
+      provisionKey = pk.pending_api_key;
+      await sql`
+        UPDATE trucks SET pending_api_key = NULL, pending_key_expires_at = NULL
+        WHERE id = ${truck.id}`;
+    }
+  } catch {}
+
   // C3: red alarm still open after 1 minute (driver did not press "ฉันตื่นแล้ว") → admin LINE
   try {
     await escalateOverdue({ truckId: truck.id, origin: new URL(request.url).origin });
@@ -110,5 +126,6 @@ export async function POST(request) {
     server_time: Math.floor(Date.now() / 1000),
     driver: matchedDriver,
     drivers,
+    ...(provisionKey ? { provision_key: provisionKey } : {}),
   });
 }
