@@ -31,7 +31,7 @@ export default async function ReportsPage() {
            t.code AS truck, t.driver_name, t.driver_code
     FROM events e
     JOIN trucks t ON t.id = e.truck_id
-    WHERE NOT e.archived
+    WHERE NOT e.archived AND t.key_revoked = false
     ORDER BY e.happened_at DESC
     LIMIT 400`;
 
