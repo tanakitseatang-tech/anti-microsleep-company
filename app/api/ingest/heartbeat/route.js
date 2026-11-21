@@ -83,6 +83,16 @@ export async function POST(request) {
       WHERE id = ${truck.id}`;
   }
 
+  // Rest: the driver picked a rest length on the board ("rest_until", unix s; null = driving).
+  // A new rest (other end time) clears rest_line_at, so each rest can trigger at most one LINE.
+  const ru = num(b.rest_until, 1.5e9, 4e9);
+  const restUntil = ru !== null && Math.abs(ru * 1000 - Date.now()) < 24 * 3600e3 ? new Date(ru * 1000) : null;
+  await sql`
+    UPDATE trucks SET
+      rest_line_at = CASE WHEN rest_until IS DISTINCT FROM ${restUntil}::timestamptz THEN NULL ELSE rest_line_at END,
+      rest_until   = ${restUntil}::timestamptz
+    WHERE id = ${truck.id}`;
+
   // Send compact employee directory back so the board can show names offline when typing 3-digit code
   let drivers = [];
   try {
