@@ -5,6 +5,7 @@ import { sql, ensureTruckColumns } from "@/lib/db";
 import { currentUser, canManage } from "@/lib/auth";
 import { LEVEL_TH, thTime, thReasons } from "@/lib/format";
 import CloseButton from "../components/CloseButton";
+import CloseAllButton from "../components/CloseAllButton";
 import AutoRefresh from "../components/AutoRefresh";
 import LineTestButton from "../components/LineTestButton";
 import AlertsExport from "../components/AlertsExport";
@@ -30,6 +31,8 @@ export default async function Alerts({ searchParams }) {
     WHERE (${show}::text = 'all' OR e.closed_at IS NULL)
     ORDER BY e.happened_at DESC
     LIMIT 300`;
+  const [{ open_count: openCount }] = await sql`
+    SELECT count(*)::int AS open_count FROM events WHERE closed_at IS NULL`;
 
   const exportList = events.map((e) => {
     const carSub = [e.truck_name, e.brand, e.model].filter(Boolean).join(" · ");
@@ -60,6 +63,7 @@ export default async function Alerts({ searchParams }) {
         <Link className="btn" href="/alerts">เคสที่ยังเปิด</Link>
         <Link className="btn" href="/alerts?show=all">ทั้งหมด (90 วันล่าสุด)</Link>
         <AlertsExport events={exportList} />
+        {canManage(user) && <CloseAllButton count={openCount} />}
         {user.role === "admin" && <LineTestButton />}
       </div>
       <div className="card">
