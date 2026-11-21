@@ -25,6 +25,31 @@ h1 { font-size: 20px; margin: 4px 0 14px; }
 .tile .v { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 16px; overflow-x: auto; }
 #map { height: 420px; border-radius: 8px; }
+
+/* dashboard: truck details next to the map (click a truck icon) */
+.mapwrap { position: relative; }
+.mapwrap.has-detail #map { height: 560px; }
+.tdetail { position: absolute; top: 10px; right: 10px; bottom: 10px; width: 360px; z-index: 1000; overflow: auto;
+           background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px;
+           padding: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+.tdetail-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.tdetail-title { font-size: 18px; font-weight: 800; }
+.tdetail-x { border: 0; font-size: 18px; padding: 2px 8px; color: var(--muted); }
+.tdetail-status { display: inline-block; margin: 8px 0 4px; padding: 3px 12px; border-radius: 999px; color: #fff; font-weight: 700; font-size: 14px; }
+.tdetail-alert { margin: 6px 0; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--alarm);
+                 background: rgba(211,47,47,.12); font-size: 14px; }
+.tdetail-sec { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 10px; }
+.tdetail-sec .k { color: var(--muted); font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+.tdetail-addr { font-size: 14px; line-height: 1.45; }
+.tdetail-coord { font: 600 15px/1.4 ui-monospace, Consolas, monospace; margin: 4px 0; user-select: all; }
+.tdetail-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tdetail-btns > * { flex: 1 1 auto; text-align: center; font-size: 14px; }
+.tdetail-btns .primary { flex-basis: 100%; padding: 10px 12px; font-weight: 700; }
+.tdetail-grid { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 14px; }
+@media (max-width: 760px) {
+  .mapwrap.has-detail #map { height: 340px; }
+  .tdetail { position: static; width: auto; margin-top: 10px; box-shadow: none; }
+}
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 th { color: var(--muted); font-weight: 600; font-size: 13px; }

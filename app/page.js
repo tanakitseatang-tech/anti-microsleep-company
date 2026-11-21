@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sql, ensureTruckColumns } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
-import { LEVEL_TH, thTime, isOnline } from "@/lib/format";
+import { LEVEL_TH, thTime, isOnline, thReasons } from "@/lib/format";
 import TruckMap from "./components/TruckMap";
 import FocusTruckButton from "./components/FocusTruckButton";
 import AutoRefresh from "./components/AutoRefresh";
@@ -19,7 +19,10 @@ export default async function Dashboard() {
     SELECT t.id, t.code, t.name, t.brand, t.model, t.vehicle_info,
            t.driver_code, t.driver_name, t.driver_phone,
            t.last_seen, t.last_lat, t.last_lon, t.last_speed, t.last_level, t.camera_ok,
-           (SELECT count(*)::int FROM events e WHERE e.truck_id = t.id AND e.closed_at IS NULL) AS open_alerts
+           (SELECT count(*)::int FROM events e WHERE e.truck_id = t.id AND e.closed_at IS NULL) AS open_alerts,
+           (SELECT json_build_object('level', e.level, 'reasons', e.reasons, 'at', e.happened_at,
+                                     'open', e.closed_at IS NULL)
+              FROM events e WHERE e.truck_id = t.id ORDER BY e.happened_at DESC LIMIT 1) AS last_event
     FROM trucks t WHERE t.key_revoked = false ORDER BY t.code`;
   const [today] = await sql`
     SELECT count(*) FILTER (WHERE level = 2)::int AS alarms, count(*)::int AS total
@@ -42,6 +45,9 @@ export default async function Dashboard() {
     speed: t.last_speed,
     camera_ok: t.camera_ok,
     open: t.open_alerts,
+    last_event: t.last_event
+      ? { level: t.last_event.level, reasons: thReasons(t.last_event.reasons), at: thTime(t.last_event.at), open: t.last_event.open }
+      : null,
   }));
   const online = rows.filter((r) => r.online).length;
 
