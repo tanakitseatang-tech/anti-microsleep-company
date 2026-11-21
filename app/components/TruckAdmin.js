@@ -145,7 +145,7 @@ export default function TruckAdmin({ trucks }) {
   const [issuedKey, setIssuedKey] = useState(null); // { code, key }
 
   async function issueKey(t) {
-    if (!confirm(`ออก API Key ใหม่สำหรับรถคันที่ ${t.code}?\n(นำ Key ไปใส่ไฟล์ company_api_key.txt บนบอร์ดแล้วระบบจะล็อกกันปลอมตัวอัตโนมัติ)`)) return;
+    if (!confirm(`ส่งและล็อก API Key อัตโนมัติสำหรับรถคันที่ ${t.code}?\n(บอร์ดที่ออนไลน์อยู่จะรับ Key เองใน ~10 วินาที ไม่ต้องก๊อปวาง)`)) return;
     setBusy(true); setMsg(""); setOkMsg("");
     try {
       const r = await fetch("/api/trucks", {
@@ -156,8 +156,10 @@ export default function TruckAdmin({ trucks }) {
       const j = await r.json();
       if (j.ok && j.key) {
         setIssuedKey({ code: t.code, key: j.key });
-        setOkMsg(`ออก API Key สำหรับรถคันที่ ${t.code} เรียบร้อย (คัดลอกเก็บไว้ตอนนี้เลย)`);
+        setOkMsg(`ส่ง API Key ไปยังบอร์ดคันที่ ${t.code} แล้ว! รอ ~10 วินาทีระบบจะล็อกอัตโนมัติ (กำลังรีเฟรชเช็กสถานะ...)`);
         router.refresh();
+        setTimeout(() => router.refresh(), 8000);
+        setTimeout(() => router.refresh(), 16000);
       } else {
         setMsg(j.error || "ออก Key ไม่สำเร็จ");
       }
@@ -410,7 +412,7 @@ export default function TruckAdmin({ trucks }) {
             <button type="button" onClick={() => setIssuedKey(null)}>ปิด</button>
           </div>
           <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-            นำไปวางในไฟล์ <code>~/ArduinoApps/anti-microsleep/company_api_key.txt</code> บนบอร์ด — เมื่อบอร์ดเชื่อมต่อครั้งถัดไป เว็บจะล็อกรถคันนี้ไม่ให้คนอื่นปลอมตัวด้วย X-Truck-Code เปล่า ๆ อัตโนมัติ
+            ⚡ <b>โหมดอัตโนมัติ:</b> ถ้าบอร์ดออนไลน์อยู่ บอร์ดจะดูด Key นี้ไปบันทึกเองภายใน ~10 วินาทีและขึ้นป้าย <b>🔒 ล็อก Key แล้ว</b> โดยไม่ต้องทำอะไรเพิ่ม (Key ด้านบนเก็บไว้สำรองกรณีบอร์ดออฟไลน์)
           </div>
         </div>
       )}
