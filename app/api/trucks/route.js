@@ -78,6 +78,22 @@ export async function POST(request) {
     return NextResponse.json({ ok: true, imported, skipped });
   }
 
+  // Remove/unlock API key for a truck (returns to X-Truck-Code mode and tells board to clear its key file)
+  if (b?.remove_key && b?.code) {
+    const code = str(b.code, 20);
+    if (!code) return NextResponse.json({ ok: false, error: "bad code" }, { status: 400 });
+    const autoHash = hashApiKey(`auto:${code}`);
+    await sql`
+      UPDATE trucks SET
+        api_key_hash           = ${autoHash},
+        key_required           = false,
+        key_revoked            = false,
+        pending_api_key        = '__CLEAR__',
+        pending_key_expires_at = now() + interval '2 minutes'
+      WHERE code = ${code}`;
+    return NextResponse.json({ ok: true, code, removed: true });
+  }
+
   // Single truck add / update
   const res = await upsertRow(b, Boolean(b?.issue_key));
   if (!res) {
