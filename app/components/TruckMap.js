@@ -417,6 +417,10 @@ export default function TruckMap({ trucks, today = { total: 0, alarms: 0 }, canM
   const allTrucks = simOn ? [...trucks, ...simTrucks] : trucks;
   const onlineCount = allTrucks.filter((t) => t.online).length;
   const dangerTrucks = trucks.filter((t) => (t.online && t.level === 2) || (t.open_red || 0) > 0);
+  // banner: a truck that is RED right now vs. a red case from earlier that nobody closed yet
+  const liveNowTrucks = dangerTrucks.filter((t) => t.online && t.level === 2);
+  const oldOpenTrucks = dangerTrucks.filter((t) => !(t.online && t.level === 2));
+  const truckNames = (list) => list.map((t) => `คันที่ ${t.code}${t.driver_name ? " " + t.driver_name : ""}`).join(", ");
   const selTruck = sel != null ? allTrucks.find((t) => t.code === sel) : null;
   // Table order: red trucks first (RED right now, then open red case), then real trucks before
   // simulated ones, then by code (numeric-aware, so "2" comes before "10").
@@ -515,7 +519,7 @@ export default function TruckMap({ trucks, today = { total: 0, alarms: 0 }, canM
         fillColor: color,
         fillOpacity: 1,
       })
-        .bindTooltip(`คันที่ ${escHtml(t.code)}${t.driver_name ? " · " + escHtml(t.driver_name) : ""} — คลิกดูรายละเอียด`, { direction: "top", offset: [0, -10] })
+        .bindTooltip(`${t.is_sim ? "🧪 DEMO · " : ""}คันที่ ${escHtml(t.code)}${t.driver_name ? " · " + escHtml(t.driver_name) : ""} — คลิกดูรายละเอียด`, { direction: "top", offset: [0, -10] })
         .on("click", () => setSel(t.code))
         .addTo(layer);
       st.current.markers[t.code] = marker;
@@ -542,14 +546,25 @@ export default function TruckMap({ trucks, today = { total: 0, alarms: 0 }, canM
         <div
           style={{
             marginBottom: 10, padding: "10px 14px", borderRadius: 10,
-            background: "rgba(211,47,47,0.14)", border: "2px solid var(--alarm)",
+            // red right now = strong red; only old unclosed red cases = calmer
+            background: liveNowTrucks.length ? "rgba(211,47,47,0.14)" : "rgba(211,47,47,0.06)",
+            border: liveNowTrucks.length ? "2px solid var(--alarm)" : "1px dashed var(--alarm)",
             display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8,
           }}
         >
-          <div>
-            <b style={{ color: "var(--alarm)" }}>
-              🚨 แจ้งเตือนศูนย์ควบคุม: มีรถที่หลับใน / มีเคสอันตราย (แดง) ค้างอยู่ ({dangerTrucks.map((t) => `คันที่ ${t.code} ${t.driver_name || ""}`).join(", ")})
-            </b>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {liveNowTrucks.length > 0 && (
+              <b style={{ color: "var(--alarm)" }}>
+                🚨 เกิดตอนนี้ — คนขับหลับใน: {truckNames(liveNowTrucks)}
+                <span style={{ fontWeight: 400 }}> · ให้โทรหาคนขับทันที</span>
+              </b>
+            )}
+            {oldOpenTrucks.length > 0 && (
+              <span style={{ color: "var(--alarm)" }}>
+                📋 เคสแดงเก่ายังไม่ปิด: {truckNames(oldOpenTrucks)}
+                <span className="muted"> · ตรวจสอบแล้วกด "ปิดเคส" ที่หน้าการแจ้งเตือน</span>
+              </span>
+            )}
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {dangerTrucks[0] && dangerTrucks[0].lat != null && (
@@ -589,7 +604,33 @@ export default function TruckMap({ trucks, today = { total: 0, alarms: 0 }, canM
       <div className="card">
         <div className={`mapwrap${selTruck ? " has-detail" : ""}`}>
           <div id="map" ref={box} />
+          {simOn && (
+            <div
+              style={{
+                position: "absolute", top: 10, left: 54, zIndex: 900, pointerEvents: "none",
+                maxWidth: selTruck ? "calc(100% - 440px)" : "calc(100% - 70px)",
+                background: "#2563eb", color: "#fff", fontWeight: 800, fontSize: 13,
+                padding: "4px 10px", borderRadius: 8, boxShadow: "0 2px 8px rgba(0,0,0,.3)",
+              }}
+            >
+              🧪 DEMO — รถ SIM-02 ถึง SIM-08 เป็นข้อมูลจำลอง (รถจริงคือคันที่ไม่ขึ้นต้นด้วย SIM)
+            </div>
+          )}
           {selTruck && <TruckDetail key={selTruck.code} t={selTruck} onClose={() => setSel(null)} />}
+        </div>
+        {/* what each colour means and what to do */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", marginTop: 8, fontSize: 13 }}>
+          {[
+            [COLORS[0], "ปกติ"],
+            [COLORS[1], "ง่วง — คอยดู"],
+            [COLORS[2], "หลับใน — โทรหาคนขับทันที"],
+            [COLORS.off, "ขาดการติดต่อ (บอร์ดเงียบเกิน 45 วินาที)"],
+          ].map(([c, txt]) => (
+            <span key={txt} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 14, height: 14, borderRadius: "50%", background: c, border: "2px solid #fff", boxShadow: "0 0 0 1px rgba(0,0,0,.25)", flex: "none" }} />
+              {txt}
+            </span>
+          ))}
         </div>
       </div>
       <div className="card">
@@ -614,6 +655,11 @@ export default function TruckMap({ trucks, today = { total: 0, alarms: 0 }, canM
                 <tr key={r.code}>
                   <td>
                     <b>คันที่ {r.code}</b>
+                    {r.is_sim && (
+                      <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 800, color: "#fff", background: "#2563eb", borderRadius: 6, padding: "1px 6px" }}>
+                        🧪 DEMO
+                      </span>
+                    )}
                     {r.name && <div className="muted" style={{ fontSize: 13 }}>{r.name}</div>}
                   </td>
                   <td style={{ whiteSpace: "normal", minWidth: 160 }}>
