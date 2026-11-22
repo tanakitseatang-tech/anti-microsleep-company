@@ -75,6 +75,7 @@ input { font: inherit; padding: 9px 10px; border-radius: 8px; border: 1px solid 
 
 /* printing a report (also from a dark-mode computer): black text on white, no buttons or menus */
 @media print {
+  * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   :root { --bg: #fff; --panel: #fff; --line: #ccc; --text: #000; --muted: #444;
           --ok: #146c3a; --warn: #8a5a00; --alarm: #b71c1c; --off: #555; --accent: #1e40af; }
   body { background: #fff; color: #000; }
@@ -82,6 +83,7 @@ input { font: inherit; padding: 9px 10px; border-radius: 8px; border: 1px solid 
   main { max-width: none; padding: 0; }
   /* cards may break across pages (long tables); keep single rows and KPI tiles whole */
   .card { overflow: visible; border-color: #ccc; }
+  .reports-charts { grid-template-columns: 1fr !important; }
   tr, .tile { break-inside: avoid; }
   th, td { white-space: normal; }
   .pill { color: #000 !important; border: 1px solid #000; background: none !important; }
