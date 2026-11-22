@@ -171,7 +171,7 @@ export default async function ReportsPage() {
       </div>
 
       {/* 24-Hour Peak Drowsiness & Cause Breakdown */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 16 }}>
+      <div className="reports-charts" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 16 }}>
         <div className="card">
           <b style={{ display: "block", marginBottom: 10 }}>⏰ ช่วงเวลาที่คนขับง่วงบ่อยที่สุด (24 ชั่วโมง)</b>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(24, 1fr)", gap: 4, alignItems: "end", height: 130, paddingTop: 16 }}>
