@@ -401,6 +401,10 @@ export default function TruckMap({ trucks, today = { total: 0, alarms: 0 }, canM
     setSoundOn(next);
     try { localStorage.setItem("ams_sound_on", next ? "1" : "0"); } catch {}
     if (!next) return;
+    // same click: ask once for desktop notifications (red cases while the tab is in the background)
+    try {
+      if (typeof Notification !== "undefined" && Notification.permission === "default") Notification.requestPermission();
+    } catch {}
     // The click allows sound: wait for the audio to wake, then play ONE confirmation beep.
     // If the alarm effect below already beeped for a danger truck just now, skip it (no double beep).
     wakeAudio().then((ok) => {
@@ -490,6 +494,47 @@ export default function TruckMap({ trucks, today = { total: 0, alarms: 0 }, canM
     const id = setInterval(check, 2500);
     return () => clearInterval(id);
   }, [soundOn, dangerKey, liveRed]);
+
+  // Browser tab title: flashes "🚨 หลับใน! คันที่ 1" while a truck is RED right now, and shows
+  // "(🔴 2)" for open red cases, so the control room notices even from another tab.
+  const liveNames = liveNowTrucks.map((t) => t.code).join(", ");
+  const openRedCount = oldOpenTrucks.length;
+  useEffect(() => {
+    const base = "Anti-Microsleep · บริษัท";
+    if (liveNames) {
+      const alarm = `🚨 หลับใน! คันที่ ${liveNames}`;
+      let on = true;
+      document.title = alarm;
+      const id = setInterval(() => { on = !on; document.title = on ? alarm : `⚠️ ${base}`; }, 1000);
+      return () => { clearInterval(id); document.title = base; };
+    }
+    document.title = openRedCount ? `(🔴 ${openRedCount}) ${base}` : base;
+    return () => { document.title = base; };
+  }, [liveNames, openRedCount]);
+
+  // Desktop notification for each NEW red case (works while the tab is in the background).
+  // Permission is asked when the control room turns the sound switch on (needs a click).
+  const notified = useRef(null);   // keys already seen; null = first render (don't notify old cases)
+  useEffect(() => {
+    const keys = dangerTrucks.map((t) => ({ t, k: `${t.code}:${t.last_event?.id ?? ""}` }));
+    if (notified.current === null) { notified.current = new Set(keys.map((x) => x.k)); return; }
+    for (const { t, k } of keys) {
+      if (notified.current.has(k)) continue;
+      notified.current.add(k);
+      if (typeof Notification === "undefined" || Notification.permission !== "granted") continue;
+      if (!document.hidden && document.hasFocus()) continue;   // already looking at the dashboard
+      try {
+        const n = new Notification(`🚨 หลับใน! รถคันที่ ${t.code}`, {
+          body: [t.driver_name && `คนขับ: ${t.driver_name}`, t.last_event?.reasons, t.driver_phone && `📞 ${t.driver_phone}`]
+            .filter(Boolean).join("\n"),
+          tag: `ams-red-${t.code}`,
+          requireInteraction: true,
+        });
+        n.onclick = () => { window.focus(); window.__focusTruck?.(t.code); n.close(); };
+      } catch {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dangerKey]);
 
   // the details panel covers the right side of the map on wide screens: keep the map size right
   useEffect(() => {

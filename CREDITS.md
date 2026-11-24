@@ -31,7 +31,7 @@ This document discloses all third-party models, open-source libraries, datasets,
 | Component | Source / Author | Usage |
 | :--- | :--- | :--- |
 | **Thai Voice Prompts (`voice_learning.wav`, `voice_ready.wav`)** | Microsoft Neural TTS (`th-TH-Premwadee`) | Spoken Thai prompts: "learning your eyes" and "system ready" |
-| **Alarm Tone (`board/sounds/beep.wav`)** | Provided by the team *(original source to be confirmed by the team)* | Local audible microsleep / rest-end alarm on the USB speaker |
+| **Alarm Tone (`board/sounds/beep.wav`)** | [Pixabay Sound Effects](https://pixabay.com/sound-effects) (Pixabay Content License) | Local audible microsleep / rest-end alarm on the USB speaker |
 
 ---
 

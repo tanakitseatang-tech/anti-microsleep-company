@@ -17,7 +17,7 @@ const SECTIONS = [
   ]],
   ["🔊 เสียง", [
     ["เสียงพูดภาษาไทย (learning / ready)", "Microsoft Neural TTS (th-TH-Premwadee)"],
-    ["เสียงเตือน beep.wav", "จัดหาโดยทีม (รอยืนยันแหล่งที่มา)"],
+    ["เสียงเตือน beep.wav", "Pixabay Sound Effects · https://pixabay.com/sound-effects (Pixabay Content License)"],
   ]],
   ["🧰 ซอฟต์แวร์ & บริการ", [
     ["Arduino Core, RouterBridge, LED_Matrix", "Arduino — เฟิร์มแวร์ STM32 บน UNO Q"],
